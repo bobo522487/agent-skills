@@ -31,3 +31,18 @@ Antigravity 内置斜杠命令（`/swarm`、`/goal`、`/browser`、`/btw`、`/co
 
 ## 浏览器纯文本隔离（Browser Text-Only Isolation）
 `/browser` 的截图与页面快照留在内置 `browser` 子代理的独立上下文；回到主编码会话的只能是 `文件:行号 | 选择器 | 修复点` 纯文本清单，由 `browser-reviewer` 整理。上游数据称长会话加载图片「can trigger」缓存失效，属风险提示而非因果承诺。
+
+## 极简人类界面（Minimal Human Interface）
+用户只需掌握两类入口：极小微调，以及动脑需求的 `/grill-with-docs` → `/implement`。其余技能、子代理与宿主命令降为内部步骤或环境提供的逃生舱；人工确认只保留「开工」一个闸门。
+
+## 双入口（Dual Entry）
+动脑需求的唯一两个显式入口：`/grill-with-docs`（对齐业务边界与异常四态）与 `/implement`（收到「开工」后执行内部四段决策树）。二者之间只有「开工 / 可以」一个人工闸门，新业务边界或异常四态变化必须回到第一个入口。
+
+## 自动决策树（Automatic Decision Tree）
+`/implement` 内部按 D1 规模/契约、D2 审查路由、D3 异常/UI 收尾三段自动选择技能与代理；用户不必显式敲 `to-spec`、`to-tickets`、`tdd`、`review-router`、`retro`。平台不保证 skill-to-skill 自动调用，本规则以文本形式约束模型按序执行。
+
+## 异常四态（Four Exceptional States）
+拷问阶段唯一必须向用户确认的业务侧异常分支；具体枚举以 `docs/coding-standards.md` 的异常分类与前端 Loading / Empty / Error / Normal 四态为基础，由 `/grill-with-docs` 与用户确认后写入 `GLOSSARY.md` / `docs/adr/`，模型不得自行补默认值。
+
+## 极小微调（Micro-Tweak）
+恰好 1 文件、≤1 hunk、不改契约/行为、不碰高危路径（DB 迁移 / 鉴权 / API 契约 / 敏感文件 / CI）的改动；直接改完跑局部快测，不进入双入口流程。

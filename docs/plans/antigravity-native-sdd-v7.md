@@ -1,6 +1,6 @@
 # Antigravity 原生 SDD 工作流 v7 修订方案
 
-> 状态：Accepted（2026-11-27）。本文是对只读附件 `lightweight_sdd_workflow_design_4.md`（v4）的评审后修订稿；附件不改动。本文取代旧 ADR-0001（`0001-antigravity-only-minimal-sdd.md`，已删除），新决策落在 `docs/adr/0001-antigravity-native-plugin-sdd.md`；正交加速层决策落在 `docs/adr/0002-orthogonal-fast-layer.md`。
+> 状态：Accepted（2026-11-27）。本文是对只读附件 `lightweight_sdd_workflow_design_4.md`（v4）的评审后修订稿；附件不改动。本文取代旧 ADR-0001（`0001-antigravity-only-minimal-sdd.md`，已删除），新决策落在 `docs/adr/0001-antigravity-native-plugin-sdd.md`；正交加速层决策落在 `docs/adr/0002-orthogonal-fast-layer.md`；极简人类界面决策落在 `docs/adr/0003-minimal-human-interface.md`（细化 ADR-0001 的交互层，非取代）。
 
 ## 0. 评审结论：v4 主张 → 核查事实 → v7 修订
 
@@ -9,7 +9,7 @@
 | 子代理用 `enable_write_tools: false` 实现物理只读 | 该字段只是 `define_subagent` 运行时参数，不是自定义子代理 frontmatter 字段；官方字段为 `name/description/tools/mainAgent/subagent/model/commandExecutionPolicy/mcpServers/skills` 等 | 用 `tools` 白名单省略文件编辑与 shell 工具，并设 `commandExecutionPolicy: off`；`mainAgent: false`、`subagent: true` |
 | `PostToolUse` 失败时用 `injectSteps` 注入报错 | 官方 `PostToolUse` 输出契约只有 `{}`，`injectSteps` 仅允许于 SessionStart / PreInvocation / PostInvocation | `post-edit-check.sh` 静默跑检查，失败只把状态写到会话 artifact 目录；`Stop` 读该状态并返回 `{"decision":"continue","reason":"..."}` 注入系统消息，成功时清除状态 |
 | `agents/openai.yaml` 的 `allow_implicit_invocation` 补丁 | 这是 Codex 专用字段，Antigravity 只识别 SKILL.md 的 `disable-model-invocation` | 删除该补丁；只删除安装副本中的 `disable-model-invocation: true`（6 个日常技能），上游源码零分叉 |
-| `codex exec` 跨模型审 + 自动回退 | 本机 `codex` 未安装；Q7 决定删除跨模型分支 | review-router 收敛为「复杂度 ≤3 单轴 / ≥4 双轴」的原生路由，两个审查代理均物理只读 |
+| 跨模型审查 + 自动回退 | 本机未安装跨模型 CLI；Q7 决定删除跨模型分支 | review-router 收敛为「复杂度 ≤3 单轴 / ≥4 双轴」的原生路由，两个审查代理均物理只读 |
 | 可选 `claude-mem` 动态记忆层 | Q8 决定删除 | 无 `--with-memory`、无外部记忆依赖；跨会话知识只用仓库静态 6 件套 |
 | 「6 文件静态契约」与 §4 只列 3 个模板矛盾 | 契约应为 6 项：`AGENTS.md` + `constitution.md` + `architecture.md` + `coding-standards.md` + `GLOSSARY.md` + `docs/adr/` | 明确 6 项；仓库用 `rules/AGENTS.md` 与 `templates/*.md` 承载，安装时投射为目标项目文件 |
 | 保留 `sdd-init` 技能 | Q6 决定删除 | 删除 `skills/sdd-init/`；初始化由 `install.sh` 末尾 curl 模板到当前 Git 工作区（不覆盖已有文件）+ `rules/AGENTS.md` 承担 |
@@ -55,13 +55,23 @@
 - A14：同时提供 `--without-fast`：只删 marker，不碰 agy-fast 本体，README 说明，避免隐形状态。
 - A15：`--with-fast` 安装失败即中止并打印 doctor 输出，不静默降级。
 
+## 1c. 极简人类界面决策（A16–A22，已采纳）
+
+- A16：只做交互层增量；不动 manifest / hooks / 脚本 / 代理 / skill 源码 / `install.sh` / ADR-0002。
+- A17：用户可见地图只有极小微调与动脑需求双入口（`/grill-with-docs` → `/implement`）；其余技能、子代理与宿主逃生舱降为内部步骤。
+- A18：极小微调 = 恰好 1 文件、≤1 hunk、不改契约/行为、不碰高危路径，改完跑局部快测；越界即进入双入口。
+- A19：人工闸门唯一，只有「开工 / 可以」；新业务边界或异常四态变化必须回到 `/grill-with-docs`。
+- A20：`/grill-with-docs` 只读 `docs/architecture.md` + `GLOSSARY.md`，只问业务边界与异常四态，技术事实自查；SessionStart 注入只写「尽快」目标，不写精确延迟承诺。
+- A21：`/implement` 内部四段决策树——D1 仅启发式（不改 `review-router` 评分），D2 保持原生只读双轴且无跨模型回退，D3 把 `/rewind`、`/boost`、`/browser`、`/retro` 保留为内部/环境能力；`/retro` 仅内部沉淀。
+- A22：载体为 `rules/AGENTS.md`、README、`GLOSSARY.md`、本方案与新建 `docs/adr/0003-minimal-human-interface.md`；ADR-0001 标为交互层由 ADR-0003 细化（非 superseded）。验收仅 `agy plugin validate --strict .` + grep 无活跃跨模型分支（`review-router` 的否定式守卫保留）/ 无精确延迟承诺 / 用户可见路径只剩两类入口；不新增脚本冒烟。
+
 ## 2. 目标仓库结构
 
 ```text
 bobo522487/agent-skills/
 ├── .antigravity-plugin/plugin.json       # 唯一 manifest，strict 校验入口
 ├── hooks.json                            # SessionStart(Node) + PostToolUse + Stop（marker 空转）
-├── rules/AGENTS.md                       # always-on 总规则（含加速层与浏览器隔离）
+├── rules/AGENTS.md                       # always-on 总规则（含加速层与极简交互层）
 ├── scripts/
 │   ├── session-start.mjs                 # 探测 6 件套并注入索引（Node fail-open）
 │   ├── post-edit-check.sh                # 静默跑 lint:boundaries，失败写状态文件；marker 时空转
@@ -80,7 +90,8 @@ bobo522487/agent-skills/
 │   ├── plans/antigravity-native-sdd-v7.md
 │   └── adr/
 │       ├── 0001-antigravity-native-plugin-sdd.md
-│       └── 0002-orthogonal-fast-layer.md
+│       ├── 0002-orthogonal-fast-layer.md
+│       └── 0003-minimal-human-interface.md
 ├── GLOSSARY.md
 ├── README.md
 └── install.sh
@@ -146,26 +157,26 @@ commandExecutionPolicy: off
 
 ### 3.7 `rules/AGENTS.md`
 
-≤45 行，分四节：固化文档导航（6 件套指针）、隐式触发与人工确认闸门、7 条铁律（含浏览器纯文本隔离）、可选加速层双模式。
+分六节：固化文档导航、极简人类界面（两类入口 + 唯一「开工」闸门）、`/implement` 内部四段决策树（D1 规模/契约启发式不改评分、D2 原生双轴、D3 异常/UI 收尾）、写后验证条件化、7 条铁律、可选加速层双模式。
 
 ### 3.8 其它文件
 
-- `GLOSSARY.md`：只定义术语；新增「正交底层加速层 / 零阻塞钩子模式 / 浏览器纯文本隔离」；真源指向 `install.sh` 与 `rules/AGENTS.md`。
-- `README.md`：30 秒安装（含 `--with-fast` / `--without-fast` 示例）、双模式写后门禁、浏览器隔离、仓库结构、明确砍掉的复杂度、指向两个 ADR。
+- `GLOSSARY.md`：只定义术语；新增「正交底层加速层 / 零阻塞钩子模式 / 浏览器纯文本隔离 / 极简人类界面 / 双入口 / 自动决策树 / 异常四态 / 极小微调」；真源指向 `install.sh` 与 `rules/AGENTS.md`。
+- `README.md`：30 秒安装（含 `--with-fast` / `--without-fast` 示例）、两类入口与内部决策树、双模式写后门禁、浏览器隔离、仓库结构、明确砍掉的复杂度、指向三个 ADR。
 - `install.sh`：接受 `--with-deep-modules` / `--with-fast` / `--without-fast`（后两者互斥）；要求 `node`/`npx`/`agy`；安装 14 核心技能 → 删除 6 个安装副本中的 `disable-model-invocation: true` → `agy plugin install https://github.com/bobo522487/agent-skills` → 可选安装 agy-fast（失败打印 doctor 并中止）或删 marker → 校验技能清单 → 若当前目录是 Git 工作区则 curl 6 件套 + ADR-0002 样板（存在即跳过）。
 - `docs/adr/0001-antigravity-native-plugin-sdd.md`：状态改为 `Superseded by ADR-0002`；决策主体保留，钩子条目标注默认模式。
 - `docs/adr/0002-orthogonal-fast-layer.md`：记录独立并列安装、条件化双模式、浏览器隔离、事实纠偏与「上游实测非本项目承诺」。
 
 ## 4. 端到端工作流
 
-1. **SessionStart**：Node 脚本 fail-open 注入已探测到的 6 件套索引，不塞全文。
-2. **拷问对齐**：新需求/重构自动进入 `grill-with-docs`（读 architecture + GLOSSARY；确认前不写码）。
-3. **确认闸门**：明确「可以/开工」后再实施；单会话轻量改走 `implement`（tdd + 单轴 Standards 审）；完整双轴或跨会话走 `to-spec` → `to-tickets` → 逐票 `implement`。
-4. **写后门禁**：默认 PostToolUse 静默跑 `lint:boundaries`，失败写状态文件，Stop 强制模型继续处理；`--with-fast` 下两钩子空转，改用 `apply_edits(verify: "npm run lint:boundaries")` 同轮内联。
-5. **审查路由**：`/review-router` 按复杂度分派物理只读代理；FAIL 满 2 轮触发 `/rewind` 或人工拍板。
-6. **沉淀**：踩坑后 `/retro`（依赖 `writing-for-agents`）；机械规则进 Lint/类型/CI，判断类进 `docs/coding-standards.md`。
+1. **SessionStart**：Node 脚本 fail-open 注入已探测到的 6 件套索引与待办 Ticket 数量，以尽快注入为目标（非延迟承诺）。
+2. **极小微调**：1 文件 / ≤1 hunk / 不改契约行为 / 不碰高危路径，直接改完跑局部快测，不进入流程。
+3. **拷问对齐**：动脑需求隐式进入 `/grill-with-docs`（读 architecture + GLOSSARY；只问业务边界与异常四态；确认前不写码）。
+4. **唯一闸门**：用户说「开工 / 可以」后进入 `/implement`。
+5. **内部决策树**：D1 按 `>3 文件 / 跨模块 / DB·API` 选轻量原地 TDD 或 `to-spec` → `to-tickets` → 逐票 `implement`；D2 走 `review-router` 原生只读双轴；D3 处理返修 2 轮、UI 纯文本隔离与 `/retro` 内部沉淀。
+6. **写后门禁**：默认 PostToolUse 静默跑 `lint:boundaries`，失败写状态文件，Stop 强制模型继续处理；`--with-fast` 下两钩子空转，改用 `apply_edits(verify: "npm run lint:boundaries")` 同轮内联，无 marker 时手动局部单测。
 
-日常模型建议 Antigravity `Orchestrator`；旁路 `/btw`、回退 `/rewind`、试方案 `/fork`、压窗 `/compact`；UI 实测 `/browser` 由内置浏览器子代理承担，只回纯文本清单；硬 Bug `/boost` + `/diagnosing-bugs`。
+用户可见地图只有极小微调 + 两个入口；`/rewind`、`/boost`、`/retro`、`/browser`、`/btw`、`/compact`、`/fork` 为环境提供的逃生舱，`/diagnosing-bugs`、`/improve-codebase-architecture` 为内部维护动作。日常模型建议 Antigravity `Orchestrator`。
 
 ## 5. 验证与验收
 
@@ -175,6 +186,7 @@ commandExecutionPolicy: off
 - `node -e` 校验 `suggestedPrompts.length <= 3`、`name` 匹配命名约束。
 - 冒烟：Node SessionStart 在有/无文档工作区分别输出注入 JSON / `{}`；非法 stdin 输出 `{}`；marker 不存在时 post-edit/stop 走原逻辑；marker 存在时分别输出 `{}` / `{"decision":"allow"}`；`--without-fast` 只删 marker。
 - `git status --short` 显示改动均在工作区；不执行 `git commit`。
+- 本轮交互层增量验收只做：`agy plugin validate --strict .` 仍通过；全文 grep 无活跃跨模型分支（仅 `review-router` 保留否定式守卫）、无精确延迟承诺；用户可见路径只剩极小微调 + 两个入口。物理层未改，不新增脚本冒烟。
 
 ## 6. 明确不采用
 
@@ -182,5 +194,5 @@ commandExecutionPolicy: off
 - 不引入 `claude-mem` / `--with-memory` / 任何跨会话动态记忆服务。
 - 不恢复 `sdd-init`、不保留 `docs/pitfalls.md` 脚手架、不维护旧 ADR-0001。
 - 不新增根 `AGENTS.md` / 根 `plugin.json` / `package.json`，避免 strict warning。
-- 不做跨模型 `codex exec` 回退链；审查只读性由工具白名单保证，不靠提示词承诺。
+- 不做跨模型回退链；审查只读性由工具白名单保证，不靠提示词承诺。
 - 不把 `agy-fast` 源码合并进本仓库、不做兼容层、不固定版本；不把上游实测数字写成自家承诺；不编造未映射的浏览器工具名。
