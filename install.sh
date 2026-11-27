@@ -35,11 +35,14 @@ if [ "$WITH_DEEP_MODULES" = true ]; then
   SKILL_FLAGS+=(--skill=setup-ts-deep-modules)
 fi
 
+# 已验证 (verified 2026-11-27)：`-y` 为必需——非 TTY 时 skills CLI 会弹出确认框，
+# stdin 为 /dev/null 时默认选 No，静默不安装却仍以 0 退出。
+# `</dev/null` 为必需——`curl ... | bash` 时脚本正文来自 stdin，npx 若不重定向会吞掉后续行。
 echo "==> [1/2] 安装精选原版 ${UPSTREAM} 到 Antigravity 全局技能目录"
-npx -y skills@latest add "$UPSTREAM" "${SKILL_FLAGS[@]}" -g -a antigravity
+npx -y skills@latest add "$UPSTREAM" "${SKILL_FLAGS[@]}" -g -a antigravity -y </dev/null
 
 echo "==> [2/2] 安装个人初始化技能 ${SELF}（sdd-init）"
-npx -y skills@latest add "$SELF" --skill=sdd-init -g -a antigravity
+npx -y skills@latest add "$SELF" --skill=sdd-init -g -a antigravity -y </dev/null
 
 cat <<'EOF'
 
