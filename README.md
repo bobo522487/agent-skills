@@ -51,5 +51,5 @@ Agent 会写入或原位合并 `AGENTS.md`（已有 `CLAUDE.md` 则合并进它�
 - `-a antigravity` 是合法 agent，全局落点即 `~/.gemini/config/skills/`；`install.sh` 会把它软链到唯一真源 `~/.agents/skills/`。Antigravity CLI 另有独立 id `antigravity-cli`，落点同样是 `~/.gemini/config/skills/`（其自身目录 `~/.gemini/antigravity-cli/skills/` 不参与）。
 - 非 TTY（`curl | bash`）必须带 `-y --skill '*'`，且每条 `npx` 命令都要 `</dev/null`，否则会吞掉脚本剩余 stdin 导致静默半装 —— 这两点已修入 `install.sh`。
 - 实测：`bash ./install.sh` 可干净安装 39 个上游技能 + `sdd-init`，保留既有技能，重跑幂等；`--with-deep-modules --with-claude` 参数按预期工作。
-- 上面的 `curl ... raw.githubusercontent.com/bobo522487/agent-skills ...` 一键命令已随仓库发布实测通过（在全新 HOME、非仓库 cwd 下管道执行，4 步全跑完，退出 0）。仓库未发布时也可 clone/进入本仓库目录直接 `./install.sh`；脚本在远端取不到 `sdd-init` 时会明确警告并以非零码退出，不会假装成功。
+- 上面的 `curl ... raw.githubusercontent.com/bobo522487/agent-skills ...` 一键命令已随仓库发布实测通过（在全新 HOME、非仓库 cwd 下管道执行，4 步全跑完，退出 0）。也可 clone/进入本仓库目录直接 `./install.sh` 走本地路径；脚本在远端取不到 `sdd-init` 时会明确警告并以非零码退出，不会假装成功。
 

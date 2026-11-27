@@ -1,18 +1,34 @@
-# Engineering Constitution
+# 工程宪法
 
-These five core rules are the project's engineering red lines. They compose with, and do not replace, the upstream `mattpocock/skills`.
+五类规则是本项目工程红线，与上游 `mattpocock/skills` 叠加而非替代。
 
-## 1. Deep modules first
-Prefer modules that hide complexity behind a small interface over shallow modules whose interface is nearly as complex as their implementation. Rationale: leverage comes from interface compression, not from more files.
+## 1. 语言与表达
 
-## 2. Subtract before adding; zero dual-track
-Before adding a new path, remove the old one. Never leave a new and an old way of doing the same thing coexisting. Rationale: dual tracks are the main source of drift and review noise.
+- 全程简体中文：思考、沟通、文档与代码注释；专有名词、代码标识符保留原文。
+- 结论先行：先给方案和结果，再给理由；不说套话，不无端推诿。
+- 文件、接口、测试结果只写已核实的；不确定的地方直接说明，绝不编造。
 
-## 3. Test behavior, not implementation detail
-Assert on observable outcomes and edge states, not on internal calls or private structure. Rationale: tests on internals break on refactors that do not change behavior.
+## 2. 先定方案，再动代码
 
-## 4. Single-schema boundary validation
-Validate external input once, at the boundary, against one schema; trust the validated shape inside. Rationale: scattered, repeated validation drifts and hides where invariants are enforced.
+- 多文件修改、新功能架构、复杂重构：先输出简洁的修改计划与文件清单，确认后再动手。
+- 局部小改动直接执行；遵循最小改动原则，不顺手重写或格式化无关代码。
 
-## 5. No dependency without justification
-Every new dependency must state the concrete problem it solves and why the existing stack cannot cover it. Rationale: dependencies are long-term liabilities; the bar for adding one is high.
+## 3. 工程与代码规范
+
+- 严格遵循现有目录结构、代码风格、命名规范，以及既有包管理器与锁文件。
+- 未经明确要求，不升级依赖版本，不引入不必要的重型库。
+- 深模块优先：用小而稳的接口隐藏复杂度，杠杆来自接口压缩而非文件数量。
+- 先减后加、零双轨：新路径上线前移除旧路径，同一件事只留一套写法。
+- 测行为不测实现：断言可观察结果与边界状态，不依赖内部调用与私有结构。
+- 单 schema 边界校验：外部输入在边界按同一 schema 校验一次，内部信任已校验的结构。
+- 依赖要有理由：写明它解决的具体问题，以及现有栈为何覆盖不了。
+
+## 4. 安全红线（配合极速模式防翻车）
+
+- 严禁在代码、日志或提交记录中硬编码 API Key、密码等敏感信息；敏感值只从外部注入。
+- 不可逆或高风险操作（批量删除文件、覆盖重要数据、`git push --force`、修改系统全局环境变量等），执行前必须先提示并征得同意。
+
+## 5. 验证与交付
+
+- 每次修改后，跑本地构建、静态检查或测试，确认改动生效。
+- 汇报时列出修改的文件与跑过的验证；严格区分「已实测通过」与「未验证」。

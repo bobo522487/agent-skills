@@ -60,12 +60,12 @@ if [ -f "${SCRIPT_DIR}/skills/sdd-init/SKILL.md" ]; then
   SELF_SRC="${SCRIPT_DIR}"
   echo "    使用本地仓库路径: $SELF_SRC"
 fi
-# 该仓库尚未发布时远端安装会失败；此处降级为警告并继续，避免整机安装被卡在第 3 步。
+# 远端取不到 sdd-init（仓库未发布 / fork / 网络故障）时降级为警告并继续，避免整机安装卡在第 3 步。
 SELF_INSTALL_OK=true
 if ! npx -y skills@latest add "$SELF_SRC" -g -a codex -a antigravity -y --skill '*' </dev/null; then
   SELF_INSTALL_OK=false
   echo "⚠️  sdd-init 安装失败（来源: $SELF_SRC）。" >&2
-  echo "    若仓库尚未发布，请进入仓库目录执行 ./install.sh；或先推送到 GitHub 后重试。" >&2
+  echo "    若远端取不到 sdd-init，可进入仓库目录执行 ./install.sh（本地路径）；或检查网络/仓库地址后重试。" >&2
 fi
 
 echo "==> [4/4] 打通 T3 Code（Antigravity）与 Codex 全局共享软链"
@@ -78,7 +78,7 @@ if [ "$SELF_INSTALL_OK" = false ]; then
   cat <<'EOF'
 
 ⚠️  安装未完全完成：公共技能与全局软链已就绪，但 sdd-init 未装上。
-    请进入本仓库目录执行 ./install.sh，或先把仓库推送到 GitHub 后重跑一键命令。
+    请进入本仓库目录执行 ./install.sh（本地路径），或检查网络/仓库地址后重跑一键命令。
 EOF
   exit 1
 fi
