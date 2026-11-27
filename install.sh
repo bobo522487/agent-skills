@@ -2,108 +2,211 @@
 set -euo pipefail
 
 UPSTREAM="mattpocock/skills"
-SELF="bobo522487/agent-skills"
+SELF_REPO="https://github.com/bobo522487/agent-skills"
+RAW_BASE="https://raw.githubusercontent.com/bobo522487/agent-skills/main"
+PLUGIN_NAME="sdd-forge"
 WITH_DEEP_MODULES=false
+WITH_FAST=false
+WITHOUT_FAST=false
+FAST_MARKER=""
+if [ -n "${HOME:-}" ]; then
+  FAST_MARKER="${HOME}/.agents/sdd-forge-fast"
+fi
 
 for arg in "$@"; do
   case "$arg" in
     --with-deep-modules) WITH_DEEP_MODULES=true ;;
+    --with-fast) WITH_FAST=true ;;
+    --without-fast) WITHOUT_FAST=true ;;
     *) echo "Unknown option: $arg" >&2; exit 1 ;;
   esac
 done
 
-# 精选 11 个核心原版技能（刻意排除会与 Antigravity 原生冲突/重叠的 grill-me、implement-spec 等）
+if [ "$WITH_FAST" = true ] && [ "$WITHOUT_FAST" = true ]; then
+  echo "--with-fast 与 --without-fast 互斥，请只选一个" >&2
+  exit 1
+fi
+
+for bin in node npx agy; do
+  command -v "$bin" >/dev/null 2>&1 || { echo "✗ 缺少 $bin，请先安装" >&2; exit 1; }
+done
+
+# 14 个核心技能：唯一真源；`retro` 的硬依赖 writing-for-agents 已包含。
 CORE_SKILLS=(
   setup-matt-pocock-skills
   grilling
   grill-with-docs
   to-spec
   to-tickets
+  implement
   tdd
   diagnosing-bugs
   code-review
+  retro
   domain-modeling
   codebase-design
   improve-codebase-architecture
+  writing-for-agents
 )
 
-EXPECTED_SKILLS=("${CORE_SKILLS[@]}" sdd-init)
+# 6 个日常流程技能：只删安装副本里的 disable-model-invocation，源码零分叉。
+AUTO_INVOKE_SKILLS=(
+  grill-with-docs
+  to-spec
+  to-tickets
+  implement
+  retro
+  improve-codebase-architecture
+)
 
+EXPECTED_SKILLS=("${CORE_SKILLS[@]}")
 SKILL_FLAGS=()
 for s in "${CORE_SKILLS[@]}"; do
   SKILL_FLAGS+=(--skill="$s")
 done
+
 if [ "$WITH_DEEP_MODULES" = true ]; then
   SKILL_FLAGS+=(--skill=setup-ts-deep-modules)
   EXPECTED_SKILLS+=(setup-ts-deep-modules)
 fi
 
-verify_installed_skills() {
-  if ! command -v node >/dev/null 2>&1; then
-    echo "✗ 安装后核对失败：缺少 node，无法解析技能清单" >&2
-    return 1
-  fi
+patch_behavior() {
+  local skill="$1"
+  local candidates=(
+    "${HOME}/.agents/skills/${skill}/SKILL.md"
+    "${HOME}/.gemini/config/skills/${skill}/SKILL.md"
+  )
+  local patched=0
+  for file in "${candidates[@]}"; do
+    [ -f "$file" ] || continue
+    if grep -q '^disable-model-invocation:[[:space:]]*true[[:space:]]*$' "$file"; then
+      sed -i.bak '/^disable-model-invocation:[[:space:]]*true[[:space:]]*$/d' "$file"
+      rm -f "${file}.bak"
+      patched=1
+    fi
+  done
+  [ "$patched" -eq 1 ] || echo "  - ${skill}: 无需补丁或文件不存在"
+}
 
+enable_fast_gate() {
+  [ -n "${HOME:-}" ] || { echo "✗ 无法确定 HOME，无法写入加速层 marker" >&2; exit 1; }
+  mkdir -p "$(dirname "$FAST_MARKER")"
+  : >"$FAST_MARKER"
+  echo "  已写入 ${FAST_MARKER}：PostToolUse/Stop 空转；验证走 apply_edits(verify: \"npm run lint:boundaries\")。"
+}
+
+disable_fast_gate() {
+  if [ -n "$FAST_MARKER" ] && [ -e "$FAST_MARKER" ]; then
+    rm -f "$FAST_MARKER"
+    echo "  已移除 ${FAST_MARKER}：恢复默认双钩子。"
+  else
+    echo "  加速层 marker 不存在，无需移除（未触碰 agy-fast 本体）。"
+  fi
+}
+
+install_fast() {
+  echo "==> [4/5] 可选：并列安装正交加速层 agy-fast（不合并源码、不固定版本）"
+  local out=""
+  if ! out="$(npx -y agy-fast install 2>&1)"; then
+    printf '%s\n' "$out" >&2
+    echo "✗ agy-fast 安装失败；doctor 输出如下：" >&2
+    npx -y agy-fast doctor 2>&1 >&2 || true
+    exit 1
+  fi
+  printf '%s\n' "$out"
+  enable_fast_gate
+}
+
+verify_installed_skills() {
   local listing
   if ! listing="$(npx -y skills@latest ls -g -a antigravity --json </dev/null)"; then
     echo "✗ 安装后核对失败：无法读取 Antigravity 全局技能清单" >&2
     return 1
   fi
-
-  local missing check_status
-  set +e
-  missing="$(node -e '
-const fs = require("fs");
+  if ! command -v node >/dev/null 2>&1; then
+    echo "✗ 安装后核对失败：缺少 node" >&2
+    return 1
+  fi
+  node -e '
+const data = JSON.parse(require("fs").readFileSync(0, "utf8"));
 const expected = process.argv.slice(1);
-let data;
-try {
-  data = JSON.parse(fs.readFileSync(0, "utf8"));
-} catch (error) {
-  console.error("invalid JSON");
-  process.exit(2);
-}
-const tracked = new Set(
-  (Array.isArray(data) ? data : [])
-    .filter((skill) => skill && skill.status === "tracked" && typeof skill.name === "string")
-    .map((skill) => skill.name)
-);
+const tracked = new Set((Array.isArray(data) ? data : [])
+  .filter((s) => s && s.status === "tracked" && typeof s.name === "string")
+  .map((s) => s.name));
 const missing = expected.filter((name) => !tracked.has(name));
-if (missing.length > 0) {
-  console.log(missing.join("\n"));
+if (missing.length) {
+  console.error("✗ 缺少技能：" + missing.join(", "));
   process.exit(1);
 }
-' "${EXPECTED_SKILLS[@]}" <<<"$listing")"
-  check_status=$?
-  set -e
-
-  if [ "$check_status" -eq 2 ]; then
-    echo "✗ 安装后核对失败：技能清单不是合法 JSON" >&2
-    return 1
-  fi
-  if [ "$check_status" -ne 0 ]; then
-    echo "✗ 安装后核对失败：Antigravity 全局技能清单缺少期望技能" >&2
-    while IFS= read -r name; do
-      [ -n "$name" ] && echo "  - $name" >&2
-    done <<<"$missing"
-    return 1
-  fi
+' "${EXPECTED_SKILLS[@]}" <<<"$listing"
 }
 
-# 历史实测（2026-11-27）：非 TTY 下 skills CLI 曾弹出确认框；缺 `-y` 时出现过“静默不安装却仍以 0 退出”。
-# skills CLI 1.9.1 源码显示当前拒装多为 exit 1，因此这里保留 `-y` 与 `</dev/null` 作为防御性 invariant：
-# 既不弹窗，也不让 `curl ... | bash` 的脚本正文被 npx 吞掉。
-echo "==> [1/2] 安装精选原版 ${UPSTREAM} 到 Antigravity 全局技能目录"
+scaffold_workspace() {
+  command -v curl >/dev/null 2>&1 || { echo "  ! 缺少 curl，跳过文档脚手架" >&2; return 0; }
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "  (当前目录不是 Git 工作区，跳过文档脚手架)"
+    return 0
+  fi
+
+  echo "==> [5/5] 当前工作区补齐固化文档（存在即跳过）"
+  fetch_if_absent() {
+    local url="$1" dest="$2"
+    mkdir -p "$(dirname "$dest")"
+    if [ -e "$dest" ]; then
+      echo "  skip $dest"
+      return 0
+    fi
+    if curl -fsSL "$url" -o "$dest"; then
+      echo "  add  $dest"
+    else
+      echo "  warn 拉取失败：$dest" >&2
+      rm -f "$dest"
+    fi
+  }
+
+  fetch_if_absent "$RAW_BASE/rules/AGENTS.md" "./AGENTS.md"
+  fetch_if_absent "$RAW_BASE/templates/constitution.md" "./docs/constitution.md"
+  fetch_if_absent "$RAW_BASE/templates/architecture.md" "./docs/architecture.md"
+  fetch_if_absent "$RAW_BASE/templates/coding-standards.md" "./docs/coding-standards.md"
+  fetch_if_absent "$RAW_BASE/GLOSSARY.md" "./GLOSSARY.md"
+  fetch_if_absent "$RAW_BASE/docs/adr/0001-antigravity-native-plugin-sdd.md" \
+    "./docs/adr/0001-antigravity-native-plugin-sdd.md"
+  fetch_if_absent "$RAW_BASE/docs/adr/0002-orthogonal-fast-layer.md" \
+    "./docs/adr/0002-orthogonal-fast-layer.md"
+}
+
+echo "==> [1/5] 安装 14 个精选原版 ${UPSTREAM} 技能"
 npx -y skills@latest add "$UPSTREAM" "${SKILL_FLAGS[@]}" -g -a antigravity -y </dev/null
 
-echo "==> [2/2] 安装个人初始化技能 ${SELF}（sdd-init）"
-npx -y skills@latest add "$SELF" --skill=sdd-init -g -a antigravity -y </dev/null
+echo "==> [2/5] 行为补丁：解锁 6 个日常技能的隐式调用（源码零分叉）"
+for s in "${AUTO_INVOKE_SKILLS[@]}"; do
+  patch_behavior "$s"
+done
+
+echo "==> [3/5] 安装 Antigravity 原生插件 ${PLUGIN_NAME}"
+if agy plugin list 2>/dev/null | grep -q "$PLUGIN_NAME"; then
+  echo "  插件 ${PLUGIN_NAME} 已安装，跳过"
+else
+  agy plugin install "$SELF_REPO"
+fi
+
+if [ "$WITH_FAST" = true ]; then
+  install_fast
+elif [ "$WITHOUT_FAST" = true ]; then
+  echo "==> [4/5] 关闭本插件的加速层空转标记（不卸载 agy-fast）"
+  disable_fast_gate
+else
+  echo "==> [4/5] 未启用 agy-fast（默认）；保留 PostToolUse/Stop 双钩子"
+fi
 
 verify_installed_skills
+scaffold_workspace
 
 cat <<'EOF'
 
 ✅ 安装完成！
-1. 在 T3 Code 中点击 Restart agent（或重启 T3 Code）。
-2. 进入任意项目运行 /sdd-init 初始化仓库骨架。
-3. 日后升级全机技能：npx skills@latest update -g
+1. 在 T3 Code 点击 Restart agent（或重启 Antigravity）加载插件 hooks / rules / agents。
+2. 新项目在 Git 根目录重跑本命令即可补齐 6 件套样板（已有文件不覆盖）。
+3. --with-fast 只写 ~/.agents/sdd-forge-fast 让本插件钩子空转；--without-fast 只删该 marker，不卸载 agy-fast。
+4. 日后升级全机技能：npx skills@latest update -g；agy-fast 由其自身升级通道独立维护。
 EOF

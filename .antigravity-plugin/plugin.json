@@ -1,0 +1,20 @@
+{
+  "name": "sdd-forge",
+  "displayName": "Antigravity SDD Forge",
+  "description": "Antigravity-native SDD workflow: deterministic hooks, physically read-only reviewers, and a static six-file documentation contract.",
+  "version": "7.0.0",
+  "author": "bobo522487",
+  "homepage": "https://github.com/bobo522487/agent-skills",
+  "repository": "https://github.com/bobo522487/agent-skills",
+  "keywords": [
+    "sdd",
+    "antigravity",
+    "code-review",
+    "workflow"
+  ],
+  "suggestedPrompts": [
+    "用 /grill-with-docs 拷问这个需求，确认后再动手",
+    "用 /review-router 审查当前改动",
+    "按 GLOSSARY.md 与 docs/adr/ 对齐术语和决策"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "command(git)",
+      "command(regex:npm run (build|lint|test|typecheck))",
+      "read_url(antigravity.google.com)"
+    ],
+    "deny": [
+      "command(rm -rf)",
+      "command(regex:curl .*)",
+      "command(sudo)",
+      "write_file(.git/)",
+      "write_file(/home/user/.ssh)"
+    ],
+    "ask": [
+      "execute_url(aws.amazon.com)"
+    ]
+  }
+}
