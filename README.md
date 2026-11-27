@@ -29,14 +29,21 @@ curl -fsSL https://raw.githubusercontent.com/bobo522487/agent-skills/main/instal
 
 Agent 会写入或原位合并 `AGENTS.md`（已有 `CLAUDE.md` 则合并进它，绝不同时建两份）、初始化 `docs/constitution.md` / `docs/pitfalls.md` / `docs/spec-template.md`（不覆盖已有文件）、衔接 `/setup-matt-pocock-skills`，并在检测到 `tsconfig.json` 时询问是否接入 TS 深模块门禁。
 
-## 日常工作流：四档分级
+## 日常工作流：一个 `/sdd`
 
-| 档位 | 适用场景 | 执行链路 | 产出物 |
-|---|---|---|---|
-| **L0 极速微调** | 5 分钟内单文件改文案、调样式、修明确小 Bug | 查既有复用 → 直接改 → 跑局部类型/单测 | 无 |
-| **L1 轻量功能** | 单模块、1~3 文件、边界较清晰的小需求 | `/grill-me`（1 轮对齐）→ `/tdd` → `/code-review` | 仅代码与测试 |
-| **L2 标准功能（完整 SDD）** | 跨文件新功能、API/数据结构变更、需并发或多人协作 | `/grill-with-docs` → `/to-spec`（带 `FR-xxx`）→ `/to-tickets`（垂直切片 DAG）→ `/implement` / `/implement-spec`（`+ /tdd`）→ `/code-review`（双轴证据制 + 需求追踪矩阵）→ 回写 `GLOSSARY` / `ADR` / `pitfalls.md` | `spec` + 垂直切片 `tickets` + 需求追踪矩阵 |
-| **L3 核心架构 / 大改造** | 跨多会话大需求、核心底座重构、数据迁移或高危权限 | 前置 `/wayfinder` 建决策地图 → 按 L2 分批推进 → 人工审 ADR 与迁移脚本 | 以上全部 + `docs/adr/` + 人工签字 |
+任何规模的任务都在 T3 Code 里发：
+
+```text
+/sdd <需求>
+```
+
+Agent 内部按三档自行判定深度，用户不分级、不记命令链：
+
+- **红线**：删除数据、覆盖重要文件、`git push --force`、改全局环境变量等不可逆操作 → 停下等你确认。
+- **加深**：跨文件、新行为、数据结构/API 变更、权限、并发或状态机 → 先出最小 spec（`FR-001`…）→ 测试先行 → 实现 → 对照审查。
+- **最小**：其余 → 查既有复用 → 最小改动 → 局部验证。
+
+判定规则、执行步骤与完成标准见 `skills/sdd/SKILL.md`；工程红线见 `docs/constitution.md`。
 
 ## 必避的 3 个坑
 
