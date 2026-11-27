@@ -1,4 +1,4 @@
-<!-- sdd-init-template-version:1 sha256:aba4411cd4f1a30eefae044bf7fa0a068b81222aa784ab17977388046917077d -->
+<!-- sdd-init-template-version:0.1.0 sha256:aba4411cd4f1a30eefae044bf7fa0a068b81222aa784ab17977388046917077d -->
 # Project Agent Operating Rules
 
 ## 1. 导航指针（先查再动手）
