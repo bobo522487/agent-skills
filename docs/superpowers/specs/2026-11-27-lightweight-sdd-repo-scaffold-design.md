@@ -40,7 +40,7 @@
 ## 留给 builder 的 / 未决
 
 - `install.sh` 中的 `npx skills` 参数已按真实 CLI 核验（2026-11-27）：`-a antigravity` 合法，全局落点即 `~/.gemini/config/skills/`；`antigravity-cli` 为同落点的独立 id，其自身目录 `~/.gemini/antigravity-cli/skills/` 不参与。安装时实测发现并修复了 3 个真实缺陷（非 TTY 缺 `-y --skill '*'`、`curl | bash` 时 npx 吞 stdin、`set -u` 下 piped 时 `BASH_SOURCE[0]` 未绑定），详见 `install.sh` 行内注释与 README 验证状态段。
-- `bobo522487/agent-skills` 仓库尚未发布：上面 README 的 `curl raw.githubusercontent.com/...` 一键命令当前返回 404，须推送后才可用；仓库未发布时从仓库目录 `./install.sh` 走本地路径安装，脚本对远端失败会给明确警告并以非零码退出。
+- 仓库已发布到 https://github.com/bobo522487/agent-skills （public, main），README 的 `curl raw.githubusercontent.com/...` 一键命令在全新 HOME、非仓库 cwd 下实测通过（4 步全跑完、退出 0、sdd-init 与软链就位）。发布前也已从仓库目录直接 `./install.sh` 验证；远端失败路径会明确警告并非零退出。
 - 是否 `git init` / commit / push：本轮不做，除非用户要求。
 - 是否删除本设计文档以满足严格 7 文件：发布前由用户定。
 
