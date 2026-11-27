@@ -1,6 +1,6 @@
 # bobo522487/agent-skills
 
-> 零分叉、零 CLI、零守护进程：不复制上游 `mattpocock/skills` 源码，全机 Agent（T3 Code 调起的 Antigravity、Codex、可选 Claude Code）统一收敛到唯一真源 `~/.agents/skills/`。全机 1 条命令安装，任意项目 `/sdd-init` 一键落地。
+> 零分叉、零 CLI、零守护进程：不复制上游 `mattpocock/skills` 源码，全机 Agent（DSH Web、T3 Code 调起的 Antigravity、Codex、可选 Claude Code 等宿主）统一收敛到唯一真源 `~/.agents/skills/`。全机 1 条命令安装，任意项目 `/sdd-init` 一键落地。
 
 ## 30 秒安装
 
@@ -16,22 +16,22 @@ curl -fsSL https://raw.githubusercontent.com/bobo522487/agent-skills/main/instal
 curl -fsSL https://raw.githubusercontent.com/bobo522487/agent-skills/main/install.sh | bash -s -- --with-deep-modules --with-claude
 ```
 
-装完在 **T3 Code** 里点一次 **Restart agent**（或重启 T3 Code），新建 Thread 即可在 Antigravity 与 Codex 中同时看到全套技能。
+装完按当前宿主刷新一次让技能生效：DSH Web 点一次 **Restart agent**（或刷新会话）；T3 Code 点一次 **Restart agent** 并新建 Thread；Antigravity / Claude Code / Codex 等重启对应客户端。刷新后即可看到全套技能。
 日后升级全机技能：`npx skills@latest update -g`。
 
 ## 每仓库一键落地
 
-在 T3 Code 中打开项目，直接发送：
+在任意宿主中打开项目，直接发送：
 
 ```text
 /sdd-init
 ```
 
-Agent 会写入或原位合并 `AGENTS.md`（已有 `CLAUDE.md` 则合并进它，绝不同时建两份）、初始化 `docs/constitution.md` / `docs/pitfalls.md` / `docs/spec-template.md`（不覆盖已有文件）、衔接 `/setup-matt-pocock-skills`，并在检测到 `tsconfig.json` 时询问是否接入 TS 深模块门禁。
+Agent 会先只读探查仓库并按 `env → 父进程 → 目录 → 问一句` 识别当前宿主；根指令文件一律落地为 `AGENTS.md`（若有 `CLAUDE.md`，每次运行都会就「全文并入后删除」征求确认：git 已跟踪则直接删，未跟踪则先备份 `.bak`，拒绝则保留并提示两份共存），初始化 `docs/constitution.md` / `docs/pitfalls.md` / `docs/spec-template.md`（不覆盖已有文件），按宿主可用性衔接 `/setup-matt-pocock-skills`（不可用则给等价手工步骤），并在检测到 `tsconfig.json` 时询问是否接入 TS 深模块门禁；最后按宿主给出技能刷新方式。判定术语见 `GLOSSARY.md`。
 
 ## 日常工作流：一个 `/sdd`
 
-任何规模的任务都在 T3 Code 里发：
+任何规模的任务都在当前宿主里发：
 
 ```text
 /sdd <需求>
