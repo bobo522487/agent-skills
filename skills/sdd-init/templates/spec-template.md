@@ -1,3 +1,4 @@
+<!-- sdd-init-template-version:1 sha256:9d0b9927f90d587f19afb7627e4e50da9363404c2bcfedd2534ab4e8a8782bf6 -->
 # Spec: <feature / change title>
 
 ## Problem & Solution

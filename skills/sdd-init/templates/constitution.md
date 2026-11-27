@@ -1,3 +1,4 @@
+<!-- sdd-init-template-version:1 sha256:ecb8010a6b75afc0f548200f14c5202499cb564455971383f41e29741093fdad -->
 # 工程宪法
 
 五类规则是本项目工程红线，与上游 `mattpocock/skills` 叠加而非替代。

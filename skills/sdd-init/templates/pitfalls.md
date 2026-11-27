@@ -1,3 +1,4 @@
+<!-- sdd-init-template-version:1 sha256:b26526df99b0c238a911ef2bac49087f64acfb3ed7c7e01f294a56f13f5e3488 -->
 # Pitfalls (anchored ledger)
 
 A record of repeated mistakes. Every row carries a date or `@commit`; stale entries are marked `superseded` rather than silently rewritten.
