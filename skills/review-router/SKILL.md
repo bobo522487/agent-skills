@@ -9,18 +9,25 @@ description: 按复杂度与风险分派物理只读双轴审查；小改只走 
 
 ## 1. 确定性范围与复杂度计算（优先用脚本，不靠心算）
 
-主会话先运行插件自带的确定性脚本收集变更范围、复杂度分数、高危路径与完整 diff（已兼容无初始提交的空仓与未跟踪新建文件）：
+主会话先运行插件自带的确定性脚本收集变更范围、复杂度分数、高危路径与按文件配额截断的 diff（已自动排除锁文件、兼容无初始提交的空仓与未跟踪新建文件）。若 `SessionStart` 已注入脚本绝对路径则直接使用，否则按以下顺序定位并执行：
 
 ```bash
-node "${PLUGIN_ROOT}/scripts/review-scope.mjs" --with-diff
+for s in \
+  "${PLUGIN_ROOT:+${PLUGIN_ROOT}/scripts/review-scope.mjs}" \
+  "${GEMINI_HOME:+${GEMINI_HOME}/config/plugins/sdd-forge/scripts/review-scope.mjs}" \
+  "${HOME}/.gemini/config/plugins/sdd-forge/scripts/review-scope.mjs" \
+  "${HOME}/.agents/plugins/sdd-forge/scripts/review-scope.mjs" \
+  "./scripts/review-scope.mjs"; do
+  [ -n "$s" ] && [ -f "$s" ] && { node "$s" --with-diff; break; }
+done
 ```
 
 脚本按以下规则计算复杂度（0–10，上限 10）：
 
 | 信号 | 计分 |
 |---|---|
-| 每超出 1 个改动文件 | +1 |
-| 每 100 行变更（含未跟踪文本新文件，向上取整） | +1 |
+| 每超出 1 个改动文件（不含锁文件；重命名计 1） | +1 |
+| 每 100 行变更（含未跟踪文本新文件，不含锁文件，向上取整） | +1 |
 | 每个高危命中：DB 迁移 / 鉴权 / API 契约 / 密钥与 `.git` / CI 配置 | +3 |
 
 高危命中即使总分低也单独记录触发路径。仅当脚本不可用时，再手工回退到 `git status --short` + `git diff HEAD`。

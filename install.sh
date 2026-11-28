@@ -76,9 +76,11 @@ find_local_templates_dir() {
 }
 
 scaffold_workspace() {
-  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  local repo_root=""
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  if [ -z "$repo_root" ]; then
     if [ "$INIT_ONLY" = true ]; then
-      echo "✗ --init-only 需要在 Git 项目根目录运行" >&2
+      echo "✗ --init-only 需要在 Git 仓库内运行" >&2
       return 1
     fi
     echo "  (当前目录不是 Git 工作区，跳过文档脚手架)"
@@ -88,10 +90,10 @@ scaffold_workspace() {
   local local_tpl_dir=""
   local_tpl_dir="$(find_local_templates_dir || true)"
   if [ -n "$local_tpl_dir" ]; then
-    echo "==> 补齐 3 份工程文档模板（本地源：${local_tpl_dir}；存在即跳过）"
+    echo "==> 补齐 3 份工程文档模板（目标：${repo_root}/docs；本地源：${local_tpl_dir}；存在即跳过）"
   else
     command -v curl >/dev/null 2>&1 || { echo "✗ 未找到本地插件模板且缺少 curl，无法初始化文档" >&2; return 1; }
-    echo "==> 补齐 3 份工程文档模板（远程源：${RAW_BASE}/templates；存在即跳过）"
+    echo "==> 补齐 3 份工程文档模板（目标：${repo_root}/docs；远程源：${RAW_BASE}/templates；存在即跳过）"
   fi
 
   local failed=0
@@ -117,9 +119,9 @@ scaffold_workspace() {
     fi
   }
 
-  install_template "constitution.md" "./docs/constitution.md"
-  install_template "architecture.md" "./docs/architecture.md"
-  install_template "coding-standards.md" "./docs/coding-standards.md"
+  install_template "constitution.md" "${repo_root}/docs/constitution.md"
+  install_template "architecture.md" "${repo_root}/docs/architecture.md"
+  install_template "coding-standards.md" "${repo_root}/docs/coding-standards.md"
 
   if [ "$failed" -gt 0 ]; then
     echo "✗ 文档脚手架有 ${failed} 份模板获取失败，请检查网络或本地插件安装状态" >&2
@@ -140,12 +142,13 @@ done
 patch_behavior() {
   local skill="$1"
   local candidates=(
+    "${GEMINI_HOME:+${GEMINI_HOME}/config/skills/${skill}/SKILL.md}"
     "${HOME}/.agents/skills/${skill}/SKILL.md"
     "${HOME}/.gemini/config/skills/${skill}/SKILL.md"
   )
   local patched=0
   for file in "${candidates[@]}"; do
-    [ -f "$file" ] || continue
+    [ -n "$file" ] && [ -f "$file" ] || continue
     if grep -q '^disable-model-invocation:[[:space:]]*true[[:space:]]*$' "$file"; then
       sed -i.bak '/^disable-model-invocation:[[:space:]]*true[[:space:]]*$/d' "$file"
       rm -f "${file}.bak"
@@ -196,9 +199,12 @@ for s in "${AUTO_INVOKE_SKILLS[@]}"; do
 done
 
 echo "==> [3/5] 安装或升级 Antigravity 原生插件 ${PLUGIN_NAME}"
-if agy plugin list 2>/dev/null | grep -q "$PLUGIN_NAME"; then
+if agy plugin list 2>/dev/null | grep -Eq "(^|[[:space:]])${PLUGIN_NAME}([[:space:]]|$)"; then
   echo "  插件 ${PLUGIN_NAME} 已存在，尝试升级..."
-  agy plugin update "$PLUGIN_NAME" 2>/dev/null || agy plugin install "$SELF_REPO"
+  if ! agy plugin update "$PLUGIN_NAME"; then
+    echo "  插件升级失败，回退为重新安装..." >&2
+    agy plugin install "$SELF_REPO"
+  fi
 else
   agy plugin install "$SELF_REPO"
 fi
@@ -217,7 +223,7 @@ cat <<'EOF'
 
 ✅ 安装完成！
 1. 在 T3 Code 点击 Restart agent（或重启 Antigravity）加载插件 hooks / rules / agents。
-2. 新项目在 Git 根目录运行 install.sh --init-only 即可离线补齐 docs/{constitution,architecture,coding-standards}.md（已有文件不覆盖）；GLOSSARY.md 与 docs/adr/ 由 /grill-with-docs 懒创建。
+2. 新项目在 Git 仓库内运行 install.sh --init-only 即可离线补齐根目录 docs/{constitution,architecture,coding-standards}.md（已有文件不覆盖）；GLOSSARY.md 与 docs/adr/ 由 /grill-with-docs 懒创建。
 3. 插件 rules/AGENTS.md 已作为全局常驻单一真源加载，不再向业务仓库重复拷贝 AGENTS.md。
 4. 日后升级全机技能：npx skills@latest update -g 后重跑本脚本，以重新应用隐式调用补丁并同步升级 sdd-forge 插件本体。
 EOF

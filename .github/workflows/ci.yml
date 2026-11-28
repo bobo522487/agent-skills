@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Syntax and JSON checks
+        run: |
+          bash -n install.sh
+          node --check scripts/lib/hook-io.mjs
+          node --check scripts/lib/git-status.mjs
+          node --check scripts/session-start.mjs
+          node --check scripts/stop-verify.mjs
+          node --check scripts/review-scope.mjs
+          node -e 'JSON.parse(require("fs").readFileSync(".antigravity-plugin/plugin.json", "utf8"))'
+          node -e 'JSON.parse(require("fs").readFileSync("hooks.json", "utf8"))'
+      - name: Run unit & integration tests
+        run: node --test tests/*.test.mjs

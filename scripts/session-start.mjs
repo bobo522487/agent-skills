@@ -5,6 +5,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { readHookPayload, resolveWorkspace } from './lib/hook-io.mjs';
 
 const DOCS = [
@@ -13,6 +14,9 @@ const DOCS = [
   'docs/coding-standards.md',
   'GLOSSARY.md',
 ];
+
+const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const REVIEW_SCOPE_SCRIPT = path.join(PLUGIN_ROOT, 'scripts', 'review-scope.mjs');
 
 function countScratchAssets(ws) {
   const scratchDir = path.join(ws, '.scratch');
@@ -83,7 +87,8 @@ function main() {
   if (found.length === 0) return {};
   const message =
     `[SDD Forge] 工作区资产：${found.join('、')}。` +
-    '规划前读 docs/architecture.md 与 GLOSSARY.md；动脑需求走 /grill-with-docs → /implement。';
+    '规划前读 docs/architecture.md 与 GLOSSARY.md；动脑需求走 /grill-with-docs → /implement。' +
+    `审查范围脚本：${REVIEW_SCOPE_SCRIPT}`;
   return { injectSteps: [{ systemMessage: { systemMessage: message } }] };
 }
 
