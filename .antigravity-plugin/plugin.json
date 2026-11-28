@@ -2,7 +2,7 @@
   "name": "sdd-forge",
   "displayName": "Antigravity SDD Forge",
   "description": "Antigravity-native SDD workflow: deterministic hooks, physically read-only reviewers, and a static six-file documentation contract.",
-  "version": "7.0.0",
+  "version": "0.7.0",
   "author": "bobo522487",
   "homepage": "https://github.com/bobo522487/agent-skills",
   "repository": "https://github.com/bobo522487/agent-skills",

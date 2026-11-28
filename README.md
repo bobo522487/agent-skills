@@ -9,7 +9,7 @@
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bobo522487/agent-skills/main/install.sh | bash
 # 锁定或回滚到指定 Release 标签：
-# curl -fsSL https://raw.githubusercontent.com/bobo522487/agent-skills/main/install.sh | bash -s -- --version v7.0.0
+# curl -fsSL https://raw.githubusercontent.com/bobo522487/agent-skills/main/install.sh | bash -s -- --version v0.7.0
 # TypeScript 项目可附带深模块边界门禁技能：
 # curl -fsSL https://raw.githubusercontent.com/bobo522487/agent-skills/main/install.sh | bash -s -- --with-deep-modules
 # 可选：并列安装正交加速层 agy-fast（独立仓库、独立升级；运行时自动探测，无需手动 marker）
