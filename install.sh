@@ -7,25 +7,14 @@ RAW_BASE="https://raw.githubusercontent.com/bobo522487/agent-skills/main"
 PLUGIN_NAME="sdd-forge"
 WITH_DEEP_MODULES=false
 WITH_FAST=false
-WITHOUT_FAST=false
-FAST_MARKER=""
-if [ -n "${HOME:-}" ]; then
-  FAST_MARKER="${HOME}/.agents/sdd-forge-fast"
-fi
 
 for arg in "$@"; do
   case "$arg" in
     --with-deep-modules) WITH_DEEP_MODULES=true ;;
     --with-fast) WITH_FAST=true ;;
-    --without-fast) WITHOUT_FAST=true ;;
     *) echo "Unknown option: $arg" >&2; exit 1 ;;
   esac
 done
-
-if [ "$WITH_FAST" = true ] && [ "$WITHOUT_FAST" = true ]; then
-  echo "--with-fast 与 --without-fast 互斥，请只选一个" >&2
-  exit 1
-fi
 
 for bin in node npx agy; do
   command -v "$bin" >/dev/null 2>&1 || { echo "✗ 缺少 $bin，请先安装" >&2; exit 1; }
@@ -88,22 +77,6 @@ patch_behavior() {
   [ "$patched" -eq 1 ] || echo "  - ${skill}: 无需补丁或文件不存在"
 }
 
-enable_fast_gate() {
-  [ -n "${HOME:-}" ] || { echo "✗ 无法确定 HOME，无法写入加速层 marker" >&2; exit 1; }
-  mkdir -p "$(dirname "$FAST_MARKER")"
-  : >"$FAST_MARKER"
-  echo "  已写入 ${FAST_MARKER}：PostToolUse/Stop 空转；验证走 apply_edits(verify: \"npm run lint:boundaries\")。"
-}
-
-disable_fast_gate() {
-  if [ -n "$FAST_MARKER" ] && [ -e "$FAST_MARKER" ]; then
-    rm -f "$FAST_MARKER"
-    echo "  已移除 ${FAST_MARKER}：恢复默认双钩子。"
-  else
-    echo "  加速层 marker 不存在，无需移除（未触碰 agy-fast 本体）。"
-  fi
-}
-
 install_fast() {
   echo "==> [4/5] 可选：并列安装正交加速层 agy-fast（不合并源码、不固定版本）"
   local out=""
@@ -114,17 +87,12 @@ install_fast() {
     exit 1
   fi
   printf '%s\n' "$out"
-  enable_fast_gate
 }
 
 verify_installed_skills() {
   local listing
   if ! listing="$(npx -y skills@latest ls -g -a antigravity --json </dev/null)"; then
     echo "✗ 安装后核对失败：无法读取 Antigravity 全局技能清单" >&2
-    return 1
-  fi
-  if ! command -v node >/dev/null 2>&1; then
-    echo "✗ 安装后核对失败：缺少 node" >&2
     return 1
   fi
   node -e '
@@ -148,7 +116,7 @@ scaffold_workspace() {
     return 0
   fi
 
-  echo "==> [5/5] 当前工作区补齐固化文档（存在即跳过）"
+  echo "==> [5/5] 当前工作区补齐 3 份工程文档模板（存在即跳过；不污染 GLOSSARY/ADR/AGENTS）"
   fetch_if_absent() {
     local url="$1" dest="$2"
     mkdir -p "$(dirname "$dest")"
@@ -164,15 +132,9 @@ scaffold_workspace() {
     fi
   }
 
-  fetch_if_absent "$RAW_BASE/rules/AGENTS.md" "./AGENTS.md"
   fetch_if_absent "$RAW_BASE/templates/constitution.md" "./docs/constitution.md"
   fetch_if_absent "$RAW_BASE/templates/architecture.md" "./docs/architecture.md"
   fetch_if_absent "$RAW_BASE/templates/coding-standards.md" "./docs/coding-standards.md"
-  fetch_if_absent "$RAW_BASE/GLOSSARY.md" "./GLOSSARY.md"
-  fetch_if_absent "$RAW_BASE/docs/adr/0001-antigravity-native-plugin-sdd.md" \
-    "./docs/adr/0001-antigravity-native-plugin-sdd.md"
-  fetch_if_absent "$RAW_BASE/docs/adr/0002-orthogonal-fast-layer.md" \
-    "./docs/adr/0002-orthogonal-fast-layer.md"
 }
 
 echo "==> [1/5] 安装 14 个精选原版 ${UPSTREAM} 技能"
@@ -183,20 +145,18 @@ for s in "${AUTO_INVOKE_SKILLS[@]}"; do
   patch_behavior "$s"
 done
 
-echo "==> [3/5] 安装 Antigravity 原生插件 ${PLUGIN_NAME}"
+echo "==> [3/5] 安装或升级 Antigravity 原生插件 ${PLUGIN_NAME}"
 if agy plugin list 2>/dev/null | grep -q "$PLUGIN_NAME"; then
-  echo "  插件 ${PLUGIN_NAME} 已安装，跳过"
+  echo "  插件 ${PLUGIN_NAME} 已存在，尝试升级..."
+  agy plugin update "$PLUGIN_NAME" 2>/dev/null || agy plugin install "$SELF_REPO"
 else
   agy plugin install "$SELF_REPO"
 fi
 
 if [ "$WITH_FAST" = true ]; then
   install_fast
-elif [ "$WITHOUT_FAST" = true ]; then
-  echo "==> [4/5] 关闭本插件的加速层空转标记（不卸载 agy-fast）"
-  disable_fast_gate
 else
-  echo "==> [4/5] 未启用 agy-fast（默认）；保留 PostToolUse/Stop 双钩子"
+  echo "==> [4/5] 未指定 --with-fast（钩子运行时会自动探测 agy-fast 是否已安装）"
 fi
 
 verify_installed_skills
@@ -206,7 +166,7 @@ cat <<'EOF'
 
 ✅ 安装完成！
 1. 在 T3 Code 点击 Restart agent（或重启 Antigravity）加载插件 hooks / rules / agents。
-2. 新项目在 Git 根目录重跑本命令即可补齐 6 件套样板（已有文件不覆盖）。
-3. --with-fast 只写 ~/.agents/sdd-forge-fast 让本插件钩子空转；--without-fast 只删该 marker，不卸载 agy-fast。
-4. 日后升级全机技能：npx skills@latest update -g；agy-fast 由其自身升级通道独立维护。
+2. 新项目在 Git 根目录重跑本命令即可补齐 docs/{constitution,architecture,coding-standards}.md（已有文件不覆盖）；GLOSSARY.md 与 docs/adr/ 由 /grill-with-docs 懒创建。
+3. 插件 rules/AGENTS.md 已作为全局常驻单一真源加载，不再向业务仓库重复拷贝 AGENTS.md。
+4. 日后升级全机技能：npx skills@latest update -g；重跑本脚本即可同步升级 sdd-forge 插件本体。
 EOF

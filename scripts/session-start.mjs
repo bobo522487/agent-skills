@@ -13,6 +13,54 @@ const DOCS = [
   'GLOSSARY.md',
 ];
 
+function countScratchAssets(ws) {
+  const scratchDir = path.join(ws, '.scratch');
+  let entries;
+  try {
+    if (!fs.statSync(scratchDir).isDirectory()) return { specs: 0, tickets: 0 };
+    entries = fs.readdirSync(scratchDir, { withFileTypes: true });
+  } catch {
+    return { specs: 0, tickets: 0 };
+  }
+
+  let specs = 0;
+  let tickets = 0;
+
+  const countMdFiles = (dir) => {
+    try {
+      return fs.readdirSync(dir).filter((name) => {
+        if (!name.endsWith('.md')) return false;
+        try {
+          return fs.statSync(path.join(dir, name)).isFile();
+        } catch {
+          return false;
+        }
+      }).length;
+    } catch {
+      return 0;
+    }
+  };
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const sub = path.join(scratchDir, entry.name);
+    if (entry.name === 'issues') {
+      // Fallback for flat .scratch/issues/*.md
+      tickets += countMdFiles(sub);
+      continue;
+    }
+    // Canonical mattpocock/skills layout: .scratch/<feature-slug>/{spec.md, issues/*.md}
+    try {
+      if (fs.statSync(path.join(sub, 'spec.md')).isFile()) specs += 1;
+    } catch {
+      // absent is fine
+    }
+    tickets += countMdFiles(path.join(sub, 'issues'));
+  }
+
+  return { specs, tickets };
+}
+
 function main() {
   let payload = {};
   try {
@@ -45,22 +93,9 @@ function main() {
     }
   }
 
-  try {
-    const issuesDir = path.join(ws, '.scratch', 'issues');
-    if (fs.statSync(issuesDir).isDirectory()) {
-      const count = fs.readdirSync(issuesDir).filter((name) => {
-        if (!name.endsWith('.md')) return false;
-        try {
-          return fs.statSync(path.join(issuesDir, name)).isFile();
-        } catch {
-          return false;
-        }
-      }).length;
-      if (count > 0) found.push(`.scratch/issues/ 下 ${count} 份 Ticket`);
-    }
-  } catch {
-    // absent is fine
-  }
+  const { specs, tickets } = countScratchAssets(ws);
+  if (specs > 0) found.push(`.scratch/*/spec.md（${specs} 份）`);
+  if (tickets > 0) found.push(`.scratch/*/issues/（${tickets} 份 Ticket）`);
 
   if (found.length === 0) return {};
   const message =

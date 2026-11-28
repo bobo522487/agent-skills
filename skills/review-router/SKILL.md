@@ -27,9 +27,9 @@ description: 按复杂度与风险分派物理只读双轴审查；小改只走 
 
 ## 3. 调用前准备
 
-1. 收集 `git diff HEAD` 与相关未跟踪文件列表；不要替代理先下结论。
-2. 查找持久化 Spec（`docs/specs/`、`docs/tickets/` 或用户指定路径）；没有就按用户明示需求核对。
-3. 把改动摘要与 Spec 路径一起交给代理；提醒代理读取 `docs/constitution.md`、`docs/architecture.md`、`docs/coding-standards.md`、`GLOSSARY.md`。
+1. 由主会话执行 `git diff HEAD` 与 `git status --short` 收集实际 diff 文本与未跟踪文件列表（只读子代理无 shell 工具，必须由主会话直接传入 diff 内容，不要替代理先下结论）。
+2. 查找持久化 Spec（`.scratch/<feature>/spec.md`、`.scratch/<feature>/issues/`、`docs/specs/`、`docs/tickets/` 或用户指定路径）；没有就按用户明示需求核对。
+3. 把 diff 文本与 Spec 路径一起交给代理；提醒代理读取 `docs/constitution.md`、`docs/architecture.md`、`docs/coding-standards.md`、`GLOSSARY.md`。
 
 ## 4. 输出契约
 
