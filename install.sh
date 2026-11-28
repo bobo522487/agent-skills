@@ -2,21 +2,52 @@
 set -euo pipefail
 
 UPSTREAM="mattpocock/skills"
-SELF_REPO="https://github.com/bobo522487/agent-skills"
-RAW_BASE="https://raw.githubusercontent.com/bobo522487/agent-skills/main"
+SELF_SLUG="bobo522487/agent-skills"
+SELF_REPO="https://github.com/${SELF_SLUG}"
 PLUGIN_NAME="sdd-forge"
 WITH_DEEP_MODULES=false
 WITH_FAST=false
 INIT_ONLY=false
+TARGET_REF=""
 
-for arg in "$@"; do
-  case "$arg" in
+while [ "$#" -gt 0 ]; do
+  case "$1" in
     --with-deep-modules) WITH_DEEP_MODULES=true ;;
     --with-fast) WITH_FAST=true ;;
     --init-only) INIT_ONLY=true ;;
-    *) echo "Unknown option: $arg" >&2; exit 1 ;;
+    --version)
+      shift
+      [ "$#" -gt 0 ] || { echo "✗ --version 缺少版本号（例如 v7.1.0）" >&2; exit 1; }
+      TARGET_REF="$1"
+      ;;
+    --version=*)
+      TARGET_REF="${1#--version=}"
+      ;;
+    *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
+  shift
 done
+
+resolve_target_ref() {
+  if [ -n "$TARGET_REF" ]; then
+    printf '%s\n' "$TARGET_REF"
+    return 0
+  fi
+  if command -v curl >/dev/null 2>&1; then
+    local latest=""
+    latest="$(curl -fsSL --max-time 5 -H "Accept: application/vnd.github+json" \
+      "https://api.github.com/repos/${SELF_SLUG}/releases/latest" 2>/dev/null \
+      | node -e 'try{const d=JSON.parse(require("fs").readFileSync(0,"utf8"));if(typeof d.tag_name==="string")process.stdout.write(d.tag_name);}catch{}' || true)"
+    if [ -n "$latest" ]; then
+      printf '%s\n' "$latest"
+      return 0
+    fi
+  fi
+  printf 'main\n'
+}
+
+RESOLVED_REF="$(resolve_target_ref)"
+RAW_BASE="https://raw.githubusercontent.com/${SELF_SLUG}/${RESOLVED_REF}"
 
 # 12 个核心技能：唯一真源；已剔除与自建流程重叠的 grilling 与 code-review。
 CORE_SKILLS=(
@@ -135,7 +166,7 @@ if [ "$INIT_ONLY" = true ]; then
   exit 0
 fi
 
-for bin in node npx agy; do
+for bin in node npx agy git; do
   command -v "$bin" >/dev/null 2>&1 || { echo "✗ 缺少 $bin，请先安装" >&2; exit 1; }
 done
 
@@ -156,6 +187,31 @@ patch_behavior() {
     fi
   done
   [ "$patched" -eq 1 ] || echo "  - ${skill}: 无需补丁或文件不存在"
+}
+
+install_or_upgrade_plugin() {
+  local tmp_dir=""
+  tmp_dir="$(mktemp -d)"
+  trap 'rm -rf "$tmp_dir"' RETURN
+
+  echo "  暂存目标版本 (${RESOLVED_REF}) 并执行严格校验..."
+  git clone --depth 1 --branch "$RESOLVED_REF" "${SELF_REPO}.git" "$tmp_dir/sdd-forge" >/dev/null 2>&1 || {
+    echo "✗ 无法拉取 ${SELF_REPO} 的分支或标签：${RESOLVED_REF}" >&2
+    return 1
+  }
+
+  if ! agy plugin validate --strict "$tmp_dir/sdd-forge" >/dev/null 2>&1; then
+    echo "✗ 新版插件校验未通过，已保留原有安装不变" >&2
+    agy plugin validate --strict "$tmp_dir/sdd-forge" >&2 || true
+    return 1
+  fi
+
+  if agy plugin list 2>/dev/null | grep -Eq "(^|[[:space:]])${PLUGIN_NAME}([[:space:]]|$)"; then
+    echo "  卸载旧版 ${PLUGIN_NAME} 并安装已校验的新版 (${RESOLVED_REF})..."
+    agy plugin uninstall "$PLUGIN_NAME" >/dev/null 2>&1 || true
+  fi
+  agy plugin install "$tmp_dir/sdd-forge"
+  agy plugin enable "$PLUGIN_NAME" >/dev/null 2>&1 || true
 }
 
 install_fast() {
@@ -190,24 +246,16 @@ if (missing.length) {
 ' "${EXPECTED_SKILLS[@]}" <<<"$listing"
 }
 
-echo "==> [1/5] 安装 12 个精选原版 ${UPSTREAM} 技能"
+echo "==> [1/5] 安装/更新 12 个精选原版 ${UPSTREAM} 技能"
 npx -y skills@latest add "$UPSTREAM" "${SKILL_FLAGS[@]}" -g -a antigravity -y </dev/null
 
-echo "==> [2/5] 行为补丁：解锁 6 个日常技能的隐式调用（源码零分叉）"
+echo "==> [2/5] 行为补丁：重新解锁 6 个日常技能的隐式调用（防上游更新覆写）"
 for s in "${AUTO_INVOKE_SKILLS[@]}"; do
   patch_behavior "$s"
 done
 
-echo "==> [3/5] 安装或升级 Antigravity 原生插件 ${PLUGIN_NAME}"
-if agy plugin list 2>/dev/null | grep -Eq "(^|[[:space:]])${PLUGIN_NAME}([[:space:]]|$)"; then
-  echo "  插件 ${PLUGIN_NAME} 已存在，尝试升级..."
-  if ! agy plugin update "$PLUGIN_NAME"; then
-    echo "  插件升级失败，回退为重新安装..." >&2
-    agy plugin install "$SELF_REPO"
-  fi
-else
-  agy plugin install "$SELF_REPO"
-fi
+echo "==> [3/5] 原子校验并安装/升级 Antigravity 原生插件 ${PLUGIN_NAME} (${RESOLVED_REF})"
+install_or_upgrade_plugin
 
 if [ "$WITH_FAST" = true ]; then
   install_fast
@@ -216,14 +264,17 @@ else
 fi
 
 verify_installed_skills
-echo "==> [5/5] 当前工作区文档脚手架检查"
+
+# 升级成功后刷新本地更新缓存，避免下一次会话误报旧版本
+rm -f "${HOME}/.agents/sdd-forge-update-cache.json" 2>/dev/null || true
+
+echo "==> [5/5] 当前工作区文档脚手架检查（已存在文件永不覆盖）"
 scaffold_workspace
 
-cat <<'EOF'
+cat <<EOF
 
-✅ 安装完成！
-1. 在 T3 Code 点击 Restart agent（或重启 Antigravity）加载插件 hooks / rules / agents。
-2. 新项目在 Git 仓库内运行 install.sh --init-only 即可离线补齐根目录 docs/{constitution,architecture,coding-standards}.md（已有文件不覆盖）；GLOSSARY.md 与 docs/adr/ 由 /grill-with-docs 懒创建。
-3. 插件 rules/AGENTS.md 已作为全局常驻单一真源加载，不再向业务仓库重复拷贝 AGENTS.md。
-4. 日后升级全机技能：npx skills@latest update -g 后重跑本脚本，以重新应用隐式调用补丁并同步升级 sdd-forge 插件本体。
+✅ 安装/升级完成（版本：${RESOLVED_REF}）！
+1. 在 T3 Code 点击 Restart agent（或重启 Antigravity）使新版 hooks / rules / agents 生效。
+2. 日后升级全机（含插件本体、上游技能与隐式调用补丁）只需重跑同一条命令；支持 --version vX.Y.Z 锁定或回滚版本。
+3. 业务仓库已有的 docs/{constitution,architecture,coding-standards}.md 不会被覆盖，模板变更请对照 GitHub Release Notes 按需合入。
 EOF

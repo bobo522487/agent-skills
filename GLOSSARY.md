@@ -43,3 +43,9 @@ Antigravity 内置斜杠命令（`/swarm`、`/goal`、`/browser`、`/btw`、`/co
 
 ## 极小微调（Micro-Tweak）
 恰好 1 文件、≤1 hunk、不改契约/行为、不碰高危路径（DB 迁移 / 鉴权 / API 契约 / 敏感文件 / CI）的改动；直接改完跑局部快测，不进入双入口流程。
+
+## 发布真源（Release Source of Truth）
+以 SemVer Git Tag 与 GitHub Release 作为面向存量用户的唯一正式发布版本；日常开发分支的提交不触发存量用户的更新提示。
+
+## 非阻塞更新提示（Non-Blocking Update Notice）
+会话启动时仅读取本地缓存给出新版本提示、绝不阻塞会话启动且绝不静默修改本地文件的通知机制；升级动作始终由用户显式触发唯一幂等安装入口完成。

@@ -2,19 +2,25 @@
 
 > Antigravity 原生 SDD 工作流插件：极简人类界面（两类入口）+ 静态工程文档契约 + 零每步阻塞 Hooks + 物理只读双轴审查 + 12 个零分叉上游技能。`agy-fast` 仅作为**正交底层加速层**并列安装，不合并源码。
 
-## 30 秒安装
+## 30 秒安装 / 升级（同一条幂等命令）
 
-前置：`node`、`npx`、`agy`（Antigravity CLI）。
+前置：`node`、`npx`、`agy`（Antigravity CLI）、`git`。
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bobo522487/agent-skills/main/install.sh | bash
+# 锁定或回滚到指定 Release 标签：
+# curl -fsSL https://raw.githubusercontent.com/bobo522487/agent-skills/main/install.sh | bash -s -- --version v7.0.0
 # TypeScript 项目可附带深模块边界门禁技能：
 # curl -fsSL https://raw.githubusercontent.com/bobo522487/agent-skills/main/install.sh | bash -s -- --with-deep-modules
 # 可选：并列安装正交加速层 agy-fast（独立仓库、独立升级；运行时自动探测，无需手动 marker）
 # curl -fsSL https://raw.githubusercontent.com/bobo522487/agent-skills/main/install.sh | bash -s -- --with-fast
 ```
 
-安装器做四件事：装 12 个精选原版 `mattpocock/skills` 到 Antigravity 全局技能目录；只对安装副本删除 6 个日常技能的 `disable-model-invocation: true`；安装或升级原生插件 `sdd-forge`；可选并列安装 `agy-fast`。技能选择的唯一真源是 [install.sh](install.sh)。
+安装与升级共用同一条命令，默认拉取最新 **GitHub Release Tag**（尚无 Release 时回退 `main`）：先更新 12 个精选原版 `mattpocock/skills` → 自动重打 6 个日常技能的隐式调用补丁（防止上游更新覆写）→ 将新版插件暂存并通过 `agy plugin validate --strict` 后再替换旧版 `sdd-forge`。
+
+- **非阻塞更新提示**：`SessionStart` 每 24 小时在后台异步检查一次最新 Release，有新版本时仅在新会话打印 1 行提示，绝不静默改文件；设 `SDD_FORGE_NO_UPDATE_CHECK=1` 可关闭。
+- **生效方式**：升级完成后在 T3 Code 点击 **Restart agent**（或重启 Antigravity）。
+- **维护者发版 3 步**：更新 `.antigravity-plugin/plugin.json` 的 `version` → `git tag vX.Y.Z && git push --tags` → 在 GitHub 创建对应 Release（若有模板变更，在 Release Notes 中注明供老项目按需合入）。
 
 ## 每仓库一键落地
 
@@ -54,7 +60,7 @@ docs/coding-standards.md             ← templates/coding-standards.md
 
 - 默认：仅在 `Stop` 钩子自动执行一次 `lint:boundaries`（如仓库已声明，自动匹配 `pnpm`/`yarn`/`bun`/`npm`；按工作区变更指纹最多拦截 2 次防死循环），失败返回 `decision=continue`；不注册每步阻塞的 `PostToolUse`。
 - 自动探测到已安装 `agy-fast` 时：`Stop` 钩子自动放行，编辑验证走 `apply_edits(verify: "npm run lint:boundaries")` 同轮内联执行。
-- `SessionStart` 以跨平台 fail-open Node 脚本扫描 4 份核心文档与 `.scratch/*/spec.md` / `.scratch/*/issues/*.md`。
+- `SessionStart` 以跨平台 fail-open Node 脚本扫描 4 份核心文档、`.scratch/*/spec.md` / `.scratch/*/issues/*.md` 及非阻塞版本更新缓存。
 
 日常模型建议选 Antigravity `Orchestrator`。
 
@@ -64,12 +70,12 @@ docs/coding-standards.md             ← templates/coding-standards.md
 .antigravity-plugin/plugin.json
 hooks.json
 rules/AGENTS.md
-scripts/{session-start.mjs,stop-verify.mjs,review-scope.mjs}
+scripts/{session-start.mjs,stop-verify.mjs,review-scope.mjs,check-update.mjs}
 scripts/lib/hook-io.mjs
 agents/{standards-reviewer,spec-reviewer}.md
 skills/review-router/SKILL.md
 templates/{constitution,architecture,coding-standards}.md
-docs/adr/{0001-antigravity-native-plugin-sdd,0002-orthogonal-fast-layer,0003-minimal-human-interface}.md
+docs/adr/{0001-antigravity-native-plugin-sdd,0002-orthogonal-fast-layer,0003-minimal-human-interface,0004-release-and-update-workflow}.md
 GLOSSARY.md
 README.md
 install.sh
