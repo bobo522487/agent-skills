@@ -14,7 +14,7 @@
   ],
   "suggestedPrompts": [
     "用 /grill-with-docs 拷问这个需求，确认后再动手",
-    "用 /review-router 审查当前改动",
+    "确认需求后用 /implement 实施并自动完成双轴审查",
     "按 GLOSSARY.md 与 docs/adr/ 对齐术语和决策"
   ]
 }

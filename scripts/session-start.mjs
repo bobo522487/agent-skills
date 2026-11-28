@@ -100,7 +100,7 @@ function main() {
   if (found.length === 0) return {};
   const message =
     `[SDD Forge] 工作区资产：${found.join('、')}。` +
-    '规划前读 docs/architecture.md 与 GLOSSARY.md，收尾走 /review-router。';
+    '规划前读 docs/architecture.md 与 GLOSSARY.md；动脑需求走 /grill-with-docs → /implement。';
   return { injectSteps: [{ systemMessage: { systemMessage: message } }] };
 }
 

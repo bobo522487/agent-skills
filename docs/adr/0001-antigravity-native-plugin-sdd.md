@@ -1,7 +1,7 @@
 # ADR-0001：采用 Antigravity 原生插件作为 SDD 确定性内核
 
 - **日期**：2026-11-27
-- **状态**：Superseded by ADR-0002；交互层由 ADR-0003 细化（非 superseded，决策主体仍有效）
+- **状态**：Accepted（钩子与加速层由 ADR-0002 修订，交互层由 ADR-0003 细化）
 - **取代**：`0001-antigravity-only-minimal-sdd.md`（已删除）
 - **细化**：`0002-orthogonal-fast-layer.md`（可选加速层；默认模式不变）；`0003-minimal-human-interface.md`（用户交互层；插件内核与双轴审查决策不变）
 

@@ -20,17 +20,15 @@ for bin in node npx agy; do
   command -v "$bin" >/dev/null 2>&1 || { echo "✗ 缺少 $bin，请先安装" >&2; exit 1; }
 done
 
-# 14 个核心技能：唯一真源；`retro` 的硬依赖 writing-for-agents 已包含。
+# 12 个核心技能：唯一真源；已剔除与自建流程重叠的 grilling 与 code-review。
 CORE_SKILLS=(
   setup-matt-pocock-skills
-  grilling
   grill-with-docs
   to-spec
   to-tickets
   implement
   tdd
   diagnosing-bugs
-  code-review
   retro
   domain-modeling
   codebase-design
@@ -83,7 +81,7 @@ install_fast() {
   if ! out="$(npx -y agy-fast install 2>&1)"; then
     printf '%s\n' "$out" >&2
     echo "✗ agy-fast 安装失败；doctor 输出如下：" >&2
-    npx -y agy-fast doctor 2>&1 >&2 || true
+    npx -y agy-fast doctor >&2 || true
     exit 1
   fi
   printf '%s\n' "$out"
@@ -137,7 +135,7 @@ scaffold_workspace() {
   fetch_if_absent "$RAW_BASE/templates/coding-standards.md" "./docs/coding-standards.md"
 }
 
-echo "==> [1/5] 安装 14 个精选原版 ${UPSTREAM} 技能"
+echo "==> [1/5] 安装 12 个精选原版 ${UPSTREAM} 技能"
 npx -y skills@latest add "$UPSTREAM" "${SKILL_FLAGS[@]}" -g -a antigravity -y </dev/null
 
 echo "==> [2/5] 行为补丁：解锁 6 个日常技能的隐式调用（源码零分叉）"
@@ -168,5 +166,5 @@ cat <<'EOF'
 1. 在 T3 Code 点击 Restart agent（或重启 Antigravity）加载插件 hooks / rules / agents。
 2. 新项目在 Git 根目录重跑本命令即可补齐 docs/{constitution,architecture,coding-standards}.md（已有文件不覆盖）；GLOSSARY.md 与 docs/adr/ 由 /grill-with-docs 懒创建。
 3. 插件 rules/AGENTS.md 已作为全局常驻单一真源加载，不再向业务仓库重复拷贝 AGENTS.md。
-4. 日后升级全机技能：npx skills@latest update -g；重跑本脚本即可同步升级 sdd-forge 插件本体。
+4. 日后升级全机技能：npx skills@latest update -g 后重跑本脚本，以重新应用隐式调用补丁并同步升级 sdd-forge 插件本体。
 EOF

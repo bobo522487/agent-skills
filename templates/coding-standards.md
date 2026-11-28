@@ -1,6 +1,6 @@
 # Coding Standards（目录、编码、异常与测试规范）
 
-> 本文件由 `@standards-reviewer` 与 `/code-review`（Standards 轴）读取，不占用实施阶段常驻上下文。
+> 本文件由 `@standards-reviewer`（Standards 轴）读取，不占用实施阶段常驻上下文。
 > 机械规则交给 `tsc` / ESLint / `dependency-cruiser`；本文件只记录需要工程判断的硬标准，由 `/retro` 持续迭代。
 
 ## 1. 项目目录规范

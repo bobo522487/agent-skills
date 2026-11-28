@@ -1,6 +1,6 @@
 # bobo522487/agent-skills
 
-> Antigravity 原生 SDD 工作流插件：极简人类界面（两类入口）+ 静态工程文档契约 + 零每步阻塞 Hooks + 物理只读双轴审查 + 14 个零分叉上游技能。`agy-fast` 仅作为**正交底层加速层**并列安装，不合并源码。
+> Antigravity 原生 SDD 工作流插件：极简人类界面（两类入口）+ 静态工程文档契约 + 零每步阻塞 Hooks + 物理只读双轴审查 + 12 个零分叉上游技能。`agy-fast` 仅作为**正交底层加速层**并列安装，不合并源码。
 
 ## 30 秒安装
 
@@ -14,7 +14,7 @@ curl -fsSL https://raw.githubusercontent.com/bobo522487/agent-skills/main/instal
 # curl -fsSL https://raw.githubusercontent.com/bobo522487/agent-skills/main/install.sh | bash -s -- --with-fast
 ```
 
-安装器做四件事：装 14 个精选原版 `mattpocock/skills` 到 Antigravity 全局技能目录；只对安装副本删除 6 个日常技能的 `disable-model-invocation: true`；安装或升级原生插件 `sdd-forge`；可选并列安装 `agy-fast`。技能选择的唯一真源是 [install.sh](install.sh)。
+安装器做四件事：装 12 个精选原版 `mattpocock/skills` 到 Antigravity 全局技能目录；只对安装副本删除 6 个日常技能的 `disable-model-invocation: true`；安装或升级原生插件 `sdd-forge`；可选并列安装 `agy-fast`。技能选择的唯一真源是 [install.sh](install.sh)。
 
 ## 每仓库一键落地
 
@@ -61,7 +61,7 @@ rules/AGENTS.md
 scripts/{session-start.mjs,stop-verify.mjs}
 agents/{standards-reviewer,spec-reviewer}.md
 skills/review-router/SKILL.md
-templates/{constitution,architecture,coding-standards}.md + permissions.json
+templates/{constitution,architecture,coding-standards}.md
 docs/plans/antigravity-native-sdd-v7.md
 docs/adr/{0001-antigravity-native-plugin-sdd,0002-orthogonal-fast-layer,0003-minimal-human-interface}.md
 GLOSSARY.md

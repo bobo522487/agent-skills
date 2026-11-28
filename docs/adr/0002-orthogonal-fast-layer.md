@@ -32,3 +32,11 @@
 - **代价**：多了一个全局 marker 这一隐形状态（用 `--without-fast` 与 README/ADR 显式化）；用户需自行理解 agy-fast 的 MCP 工具路由；引用上游数字时必须持续标注「上游实测，非本项目承诺」。
 - **迁移**：ADR-0001 状态改为 `Superseded by ADR-0002`；其决策主体不废弃。`scripts/session-start.sh` 被 `scripts/session-start.mjs` 取代；`hooks.json` 的 SessionStart 命令改为 `node ./scripts/session-start.mjs`。
 - **验证**：`bash -n install.sh scripts/*.sh`、`node --check scripts/session-start.mjs`、`jq -e` JSON 检查、`agy plugin validate --strict .` 必须通过；冒烟覆盖 marker 存在/不存在两条路径与 Node SessionStart 的 fail-open。
+
+## 后续修订（2026-11-28）
+
+进一步收敛复杂度，取消手动 marker 与每步阻塞钩子：
+
+1. **删除 `PostToolUse`、状态文件中继与 `~/.agents/sdd-forge-fast` marker**：不再注册 `PostToolUse`，删除 `scripts/post-edit-check.sh`、`scripts/stop-verify.sh` 与 `--without-fast` 选项。
+2. **统一为无依赖 Node `Stop` 钩子 + 运行时探测**：`scripts/stop-verify.mjs` 在运行时自动探测 `agy-fast` 的插件 manifest；仅在未装 `agy-fast` 且工作区存在未提交源码改动时运行一次 `lint:boundaries`，并设最多 2 次连续拦截上限防止死循环。
+3. **删除 `agents/browser-reviewer.md`**：纯文本表格约束直接交由 `rules/AGENTS.md` 与内置 `browser` 子代理承担，消除多余透传代理。
