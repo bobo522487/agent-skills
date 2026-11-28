@@ -5,6 +5,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { readHookPayload, resolveWorkspace } from './lib/hook-io.mjs';
 
 const DOCS = [
   'docs/constitution.md',
@@ -62,27 +63,9 @@ function countScratchAssets(ws) {
 }
 
 function main() {
-  let payload = {};
-  try {
-    const raw = fs.readFileSync(0, 'utf8');
-    if (raw.trim()) payload = JSON.parse(raw);
-  } catch {
-    return {};
-  }
-  if (!payload || typeof payload !== 'object') return {};
-
-  const paths = Array.isArray(payload.workspacePaths) ? payload.workspacePaths : [];
-  const candidate = paths.find((p) => typeof p === 'string' && p.length > 0) ||
-    (typeof payload.cwd === 'string' ? payload.cwd : '');
-  if (!candidate) return {};
-
-  let ws;
-  try {
-    ws = path.resolve(candidate);
-    if (!fs.statSync(ws).isDirectory()) return {};
-  } catch {
-    return {};
-  }
+  const payload = readHookPayload();
+  const ws = resolveWorkspace(payload);
+  if (!ws) return {};
 
   const found = [];
   for (const rel of DOCS) {

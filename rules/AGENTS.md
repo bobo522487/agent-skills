@@ -14,14 +14,13 @@
   - 新业务边界或异常四态发生变化，必须回到 `/grill-with-docs`，不在 `/implement` 内自行假设。
 - 其余技能（`to-spec`、`to-tickets`、`tdd`、`review-router`、`retro`）以及 `/rewind`、`/boost`、`/browser`、`/btw`、`/compact`、`/fork` 都是内部步骤或环境提供的逃生舱，不进入用户可见地图。
 
-## 3. `/implement` 内部四段决策树（不必记，规则自动执行）
-1. **D0 入口**：收到「开工」后接管；不再重复确认已由 `/grill-with-docs` 对齐的业务边界与异常四态。
-2. **D1 规模 / 契约**：轻量改动走原地 TDD；`>3 文件 / 跨模块 / DB·API` 时按序使用 `to-spec` → `to-tickets` → 逐票 `implement`（隐式或手动触发，平台不保证 skill-to-skill 自动调用）。「跨模块」只是用户启发式，不改动 `review-router` 评分信号。
-3. **D2 审查路由**：保持 `review-router` 原生只读双轴：`≤3` 单轴、`4–6` 双轴、`≥7` 或高危双轴 + 触发路径；无跨模型、无回退层。
-4. **D3 异常 / UI 收尾**：返修满 2 轮仍 FAIL → `/rewind` 或人工拍板；前端 UI → 内置 `browser` 子代理（`/browser`）实测，**直接返回 `文件:行号 | 选择器 | 修复点` 纯文本表格，严禁把截图或快照带回主会话**；PASS 且有返工提示 → `/retro` 内部沉淀（机械规则进门禁，判断类进 `docs/coding-standards.md`）。
+## 3. `/implement` 内部三段决策树（收到「开工」后自动执行）
+1. **D1 规模 / 契约**：收到「开工」后不再重复确认已对齐的业务边界与异常四态；轻量改动走原地 TDD；`>3 文件 / 跨模块 / DB·API` 时按序使用 `to-spec` → `to-tickets` → 逐票 `implement`（隐式或手动触发，平台不保证 skill-to-skill 自动调用）。「跨模块」只是用户启发式，不改动 `review-router` 评分信号。
+2. **D2 审查路由**：调用 `review-router`（优先运行 `scripts/review-scope.mjs --with-diff` 确定性算分与收 diff），保持原生只读双轴：`≤3` 单轴、`4–6` 双轴、`≥7` 或高危双轴 + 触发路径；无跨模型、无回退层。
+3. **D3 异常 / UI 收尾**：返修满 2 轮仍 FAIL → `/rewind` 或人工拍板；前端 UI → 内置 `browser` 子代理（`/browser`）实测，**直接返回 `文件:行号 | 选择器 | 修复点` 纯文本表格，严禁把截图或快照带回主会话**；PASS 且有返工提示 → `/retro` 内部沉淀（机械规则进门禁，判断类进 `docs/coding-standards.md`）。
 
 ## 4. 写后验证（零每步阻塞）
-- 默认：仅在 `Stop` 钩子自动执行一次 `lint:boundaries`（如仓库已声明），失败时返回 `decision=continue`；无每步 `PostToolUse` 阻塞。
+- 默认：仅在 `Stop` 钩子自动执行一次 `lint:boundaries`（如仓库已声明，自动匹配 `pnpm`/`yarn`/`bun`/`npm`），失败时返回 `decision=continue`；无每步 `PostToolUse` 阻塞。
 - 检测到已安装 `agy-fast` 时：`Stop` 钩子自动放行，编辑验证走 `apply_edits(verify: "npm run lint:boundaries")` 同轮内联执行。
 - `SessionStart` 以跨平台 fail-open Node 脚本尽快注入工作区文档与 `.scratch/` 索引。
 

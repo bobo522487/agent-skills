@@ -7,17 +7,15 @@ RAW_BASE="https://raw.githubusercontent.com/bobo522487/agent-skills/main"
 PLUGIN_NAME="sdd-forge"
 WITH_DEEP_MODULES=false
 WITH_FAST=false
+INIT_ONLY=false
 
 for arg in "$@"; do
   case "$arg" in
     --with-deep-modules) WITH_DEEP_MODULES=true ;;
     --with-fast) WITH_FAST=true ;;
+    --init-only) INIT_ONLY=true ;;
     *) echo "Unknown option: $arg" >&2; exit 1 ;;
   esac
-done
-
-for bin in node npx agy; do
-  command -v "$bin" >/dev/null 2>&1 || { echo "✗ 缺少 $bin，请先安装" >&2; exit 1; }
 done
 
 # 12 个核心技能：唯一真源；已剔除与自建流程重叠的 grilling 与 code-review。
@@ -56,6 +54,88 @@ if [ "$WITH_DEEP_MODULES" = true ]; then
   SKILL_FLAGS+=(--skill=setup-ts-deep-modules)
   EXPECTED_SKILLS+=(setup-ts-deep-modules)
 fi
+
+find_local_templates_dir() {
+  local script_dir=""
+  if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  fi
+  local candidates=(
+    "${script_dir:+${script_dir}/templates}"
+    "${GEMINI_HOME:+${GEMINI_HOME}/config/plugins/${PLUGIN_NAME}/templates}"
+    "${HOME}/.gemini/config/plugins/${PLUGIN_NAME}/templates"
+    "${HOME}/.agents/plugins/${PLUGIN_NAME}/templates"
+  )
+  for dir in "${candidates[@]}"; do
+    if [ -n "$dir" ] && [ -d "$dir" ] && [ -f "${dir}/constitution.md" ]; then
+      printf '%s\n' "$dir"
+      return 0
+    fi
+  done
+  return 1
+}
+
+scaffold_workspace() {
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    if [ "$INIT_ONLY" = true ]; then
+      echo "✗ --init-only 需要在 Git 项目根目录运行" >&2
+      return 1
+    fi
+    echo "  (当前目录不是 Git 工作区，跳过文档脚手架)"
+    return 0
+  fi
+
+  local local_tpl_dir=""
+  local_tpl_dir="$(find_local_templates_dir || true)"
+  if [ -n "$local_tpl_dir" ]; then
+    echo "==> 补齐 3 份工程文档模板（本地源：${local_tpl_dir}；存在即跳过）"
+  else
+    command -v curl >/dev/null 2>&1 || { echo "✗ 未找到本地插件模板且缺少 curl，无法初始化文档" >&2; return 1; }
+    echo "==> 补齐 3 份工程文档模板（远程源：${RAW_BASE}/templates；存在即跳过）"
+  fi
+
+  local failed=0
+  install_template() {
+    local name="$1" dest="$2"
+    mkdir -p "$(dirname "$dest")"
+    if [ -e "$dest" ]; then
+      echo "  skip $dest"
+      return 0
+    fi
+    if [ -n "$local_tpl_dir" ] && [ -f "${local_tpl_dir}/${name}" ]; then
+      if cp "${local_tpl_dir}/${name}" "$dest"; then
+        echo "  add  $dest (local)"
+        return 0
+      fi
+    fi
+    if command -v curl >/dev/null 2>&1 && curl -fsSL "${RAW_BASE}/templates/${name}" -o "$dest"; then
+      echo "  add  $dest (remote)"
+    else
+      echo "  ✗ 获取模板失败：${dest}" >&2
+      rm -f "$dest"
+      failed=$((failed + 1))
+    fi
+  }
+
+  install_template "constitution.md" "./docs/constitution.md"
+  install_template "architecture.md" "./docs/architecture.md"
+  install_template "coding-standards.md" "./docs/coding-standards.md"
+
+  if [ "$failed" -gt 0 ]; then
+    echo "✗ 文档脚手架有 ${failed} 份模板获取失败，请检查网络或本地插件安装状态" >&2
+    return 1
+  fi
+}
+
+if [ "$INIT_ONLY" = true ]; then
+  scaffold_workspace
+  echo "✅ 项目文档模板初始化完成（GLOSSARY.md 与 docs/adr/ 由 /grill-with-docs 懒创建）。"
+  exit 0
+fi
+
+for bin in node npx agy; do
+  command -v "$bin" >/dev/null 2>&1 || { echo "✗ 缺少 $bin，请先安装" >&2; exit 1; }
+done
 
 patch_behavior() {
   local skill="$1"
@@ -107,34 +187,6 @@ if (missing.length) {
 ' "${EXPECTED_SKILLS[@]}" <<<"$listing"
 }
 
-scaffold_workspace() {
-  command -v curl >/dev/null 2>&1 || { echo "  ! 缺少 curl，跳过文档脚手架" >&2; return 0; }
-  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    echo "  (当前目录不是 Git 工作区，跳过文档脚手架)"
-    return 0
-  fi
-
-  echo "==> [5/5] 当前工作区补齐 3 份工程文档模板（存在即跳过；不污染 GLOSSARY/ADR/AGENTS）"
-  fetch_if_absent() {
-    local url="$1" dest="$2"
-    mkdir -p "$(dirname "$dest")"
-    if [ -e "$dest" ]; then
-      echo "  skip $dest"
-      return 0
-    fi
-    if curl -fsSL "$url" -o "$dest"; then
-      echo "  add  $dest"
-    else
-      echo "  warn 拉取失败：$dest" >&2
-      rm -f "$dest"
-    fi
-  }
-
-  fetch_if_absent "$RAW_BASE/templates/constitution.md" "./docs/constitution.md"
-  fetch_if_absent "$RAW_BASE/templates/architecture.md" "./docs/architecture.md"
-  fetch_if_absent "$RAW_BASE/templates/coding-standards.md" "./docs/coding-standards.md"
-}
-
 echo "==> [1/5] 安装 12 个精选原版 ${UPSTREAM} 技能"
 npx -y skills@latest add "$UPSTREAM" "${SKILL_FLAGS[@]}" -g -a antigravity -y </dev/null
 
@@ -158,13 +210,14 @@ else
 fi
 
 verify_installed_skills
+echo "==> [5/5] 当前工作区文档脚手架检查"
 scaffold_workspace
 
 cat <<'EOF'
 
 ✅ 安装完成！
 1. 在 T3 Code 点击 Restart agent（或重启 Antigravity）加载插件 hooks / rules / agents。
-2. 新项目在 Git 根目录重跑本命令即可补齐 docs/{constitution,architecture,coding-standards}.md（已有文件不覆盖）；GLOSSARY.md 与 docs/adr/ 由 /grill-with-docs 懒创建。
+2. 新项目在 Git 根目录运行 install.sh --init-only 即可离线补齐 docs/{constitution,architecture,coding-standards}.md（已有文件不覆盖）；GLOSSARY.md 与 docs/adr/ 由 /grill-with-docs 懒创建。
 3. 插件 rules/AGENTS.md 已作为全局常驻单一真源加载，不再向业务仓库重复拷贝 AGENTS.md。
 4. 日后升级全机技能：npx skills@latest update -g 后重跑本脚本，以重新应用隐式调用补丁并同步升级 sdd-forge 插件本体。
 EOF

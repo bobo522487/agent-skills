@@ -1,16 +1,19 @@
 #!/usr/bin/env node
 'use strict';
 // Stop boundary gate: fail-open, dependency-free, cross-platform.
-// Runs `npm run -s lint:boundaries` once at turn end only when:
+// Runs `<runner> run lint:boundaries` once at turn end only when:
 //   1. agy-fast is not installed (auto-detected via plugin manifest, no marker file)
 //   2. the repo declares `scripts["lint:boundaries"]`
 //   3. the workspace has uncommitted non-doc code changes (skips pure Q&A / /grill-with-docs)
-//   4. consecutive Stop blocks have not exceeded MAX_CONTINUES (prevents infinite loops)
+//   4. consecutive Stop blocks for the same workspace fingerprint have not exceeded MAX_CONTINUES
 
 import { spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { readHookPayload, resolveWorkspace } from './lib/hook-io.mjs';
 
 const ALLOW = { decision: 'allow' };
 const MAX_CONTINUES = 2;
@@ -43,27 +46,103 @@ function hasAgyFast(ws) {
   return false;
 }
 
-function hasUncommittedCodeChanges(ws) {
-  const res = spawnSync('git', ['status', '--porcelain', '-uall'], {
+function isCodePath(file) {
+  if (!file) return false;
+  const normalized = file.replace(/\\/g, '/');
+  if (normalized.startsWith('.scratch/') || normalized.startsWith('docs/')) return false;
+  if (/\.(md|txt)$/i.test(normalized)) return false;
+  return true;
+}
+
+// Parse `git status --porcelain=v1 -z -uall` to handle renames, spaces, and non-ASCII paths cleanly.
+export function parsePorcelainZ(raw) {
+  if (!raw) return [];
+  const tokens = raw.split('\0');
+  const files = [];
+  for (let i = 0; i < tokens.length; i += 1) {
+    const entry = tokens[i];
+    if (!entry || entry.length < 4) continue;
+    const xy = entry.slice(0, 2);
+    const primary = entry.slice(3);
+    if (primary) files.push(primary);
+    // In -z mode, renames ('R') and copies ('C') are followed by the original path as the next NUL token.
+    if (xy.includes('R') || xy.includes('C')) {
+      const orig = tokens[i + 1];
+      if (orig) files.push(orig);
+      i += 1;
+    }
+  }
+  return files;
+}
+
+function inspectWorkspaceChanges(ws) {
+  const statusRes = spawnSync('git', ['status', '--porcelain=v1', '-z', '-uall'], {
     cwd: ws,
     encoding: 'utf8',
     timeout: 3000,
     windowsHide: true,
   });
   // If not a git repo or git unavailable, do not skip solely on git error.
-  if (res.error || res.status !== 0) return true;
-  const lines = (res.stdout || '').split(/\r?\n/).filter(Boolean);
-  if (lines.length === 0) return false;
-  return lines.some((line) => {
-    const file = line.slice(3).trim().replace(/^"|"$/g, '');
-    if (!file) return false;
-    if (file.startsWith('.scratch/') || file.startsWith('docs/')) return false;
-    if (/\.(md|txt)$/i.test(file)) return false;
-    return true;
+  if (statusRes.error || statusRes.status !== 0) {
+    return { hasCodeChanges: true, fingerprint: '' };
+  }
+
+  const rawStatus = statusRes.stdout || '';
+  const files = parsePorcelainZ(rawStatus);
+  if (files.length === 0) {
+    return { hasCodeChanges: false, fingerprint: '' };
+  }
+
+  const hasCodeChanges = files.some(isCodePath);
+  if (!hasCodeChanges) {
+    return { hasCodeChanges: false, fingerprint: '' };
+  }
+
+  const diffStatRes = spawnSync('git', ['diff', '--stat'], {
+    cwd: ws,
+    encoding: 'utf8',
+    timeout: 3000,
+    windowsHide: true,
   });
+  const hash = crypto
+    .createHash('sha256')
+    .update(rawStatus)
+    .update('\0')
+    .update(diffStatRes.stdout || '')
+    .digest('hex')
+    .slice(0, 16);
+
+  return { hasCodeChanges: true, fingerprint: hash };
 }
 
-function getCounterFile(payload) {
+export function detectRunner(ws, pkg) {
+  const pmField = typeof pkg?.packageManager === 'string' ? pkg.packageManager.split('@')[0] : '';
+  let runner = '';
+  if (['pnpm', 'yarn', 'bun', 'npm'].includes(pmField)) {
+    runner = pmField;
+  } else if (fs.existsSync(path.join(ws, 'pnpm-lock.yaml'))) {
+    runner = 'pnpm';
+  } else if (fs.existsSync(path.join(ws, 'yarn.lock'))) {
+    runner = 'yarn';
+  } else if (fs.existsSync(path.join(ws, 'bun.lock')) || fs.existsSync(path.join(ws, 'bun.lockb'))) {
+    runner = 'bun';
+  } else {
+    runner = 'npm';
+  }
+
+  switch (runner) {
+    case 'pnpm':
+      return { bin: 'pnpm', args: ['run', '--silent', 'lint:boundaries'] };
+    case 'yarn':
+      return { bin: 'yarn', args: ['--silent', 'run', 'lint:boundaries'] };
+    case 'bun':
+      return { bin: 'bun', args: ['run', '--silent', 'lint:boundaries'] };
+    default:
+      return { bin: 'npm', args: ['run', '-s', 'lint:boundaries'] };
+  }
+}
+
+function getStateFile(payload) {
   const dir = typeof payload.artifactDirectoryPath === 'string' ? payload.artifactDirectoryPath : '';
   if (!dir) return '';
   try {
@@ -76,64 +155,57 @@ function getCounterFile(payload) {
   return '';
 }
 
-function readCount(counterFile) {
-  if (!counterFile) return 0;
+function readState(stateFile) {
+  if (!stateFile) return { count: 0, fingerprint: '' };
   try {
-    const data = JSON.parse(fs.readFileSync(counterFile, 'utf8'));
-    return Number.isInteger(data?.count) && data.count >= 0 ? data.count : 0;
+    const data = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+    const count = Number.isInteger(data?.count) && data.count >= 0 ? data.count : 0;
+    const fingerprint = typeof data?.fingerprint === 'string' ? data.fingerprint : '';
+    return { count, fingerprint };
   } catch {
-    return 0;
+    return { count: 0, fingerprint: '' };
   }
 }
 
-function writeCount(counterFile, count) {
-  if (!counterFile) return;
+function writeState(stateFile, state) {
+  if (!stateFile) return;
   try {
-    fs.writeFileSync(counterFile, JSON.stringify({ count }), 'utf8');
+    fs.writeFileSync(stateFile, JSON.stringify(state), 'utf8');
   } catch {
     // ignore
   }
 }
 
-function clearCount(counterFile) {
-  if (!counterFile) return;
+function clearState(stateFile) {
+  if (!stateFile) return;
   try {
-    fs.rmSync(counterFile, { force: true });
+    fs.rmSync(stateFile, { force: true });
   } catch {
     // ignore
   }
 }
 
 function main() {
-  let payload = {};
-  try {
-    const raw = fs.readFileSync(0, 'utf8');
-    if (raw.trim()) payload = JSON.parse(raw);
-  } catch {
-    return ALLOW;
-  }
-  if (!payload || typeof payload !== 'object') return ALLOW;
-
-  const paths = Array.isArray(payload.workspacePaths) ? payload.workspacePaths : [];
-  const candidate = paths.find((p) => typeof p === 'string' && p.length > 0) ||
-    (typeof payload.cwd === 'string' ? payload.cwd : '');
-  if (!candidate) return ALLOW;
-
-  let ws;
-  try {
-    ws = path.resolve(candidate);
-    if (!fs.statSync(ws).isDirectory()) return ALLOW;
-  } catch {
-    return ALLOW;
-  }
+  const payload = readHookPayload();
+  const ws = resolveWorkspace(payload);
+  if (!ws) return ALLOW;
 
   // When agy-fast is installed, edit-time verification is handled inline via apply_edits(verify).
   if (hasAgyFast(ws)) return ALLOW;
 
-  const counterFile = getCounterFile(payload);
+  const stateFile = getStateFile(payload);
+  const { hasCodeChanges, fingerprint } = inspectWorkspaceChanges(ws);
   // Skip pure Q&A / /grill-with-docs turns that did not touch code files.
-  if (!hasUncommittedCodeChanges(ws)) {
-    clearCount(counterFile);
+  if (!hasCodeChanges) {
+    clearState(stateFile);
+    return ALLOW;
+  }
+
+  // If this exact dirty snapshot already exhausted MAX_CONTINUES, stay suppressed until code changes.
+  const prevState = readState(stateFile);
+  const effectiveCount =
+    fingerprint && prevState.fingerprint === fingerprint ? prevState.count : 0;
+  if (effectiveCount >= MAX_CONTINUES) {
     return ALLOW;
   }
 
@@ -146,40 +218,44 @@ function main() {
   }
   if (!pkg?.scripts || typeof pkg.scripts['lint:boundaries'] !== 'string') return ALLOW;
 
-  const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const res = spawnSync(npmBin, ['run', '-s', 'lint:boundaries'], {
+  const { bin, args } = detectRunner(ws, pkg);
+  const res = spawnSync(bin, args, {
     cwd: ws,
     encoding: 'utf8',
     timeout: 15000,
     windowsHide: true,
+    // On Windows (Node 18.20+/20.12+/22+), invoking .cmd shims without shell: true throws EINVAL.
+    // bin and args are fixed constants above (no untrusted user input).
+    shell: process.platform === 'win32',
   });
 
   if (res.error || res.status === 0) {
-    clearCount(counterFile);
+    clearState(stateFile);
     return ALLOW;
   }
 
-  // Guard against infinite Stop -> continue loops (matches AGENTS.md max 2 retries).
-  if (!counterFile && payload.stop_hook_active === true) return ALLOW;
-  const nextCount = readCount(counterFile) + 1;
-  if (nextCount > MAX_CONTINUES) {
-    clearCount(counterFile);
-    return ALLOW;
-  }
-  writeCount(counterFile, nextCount);
+  // Fallback guard when artifactDirectoryPath is absent.
+  if (!stateFile && payload.stop_hook_active === true) return ALLOW;
+
+  const nextCount = effectiveCount + 1;
+  writeState(stateFile, { count: nextCount, fingerprint });
 
   const combined = `${res.stdout || ''}\n${res.stderr || ''}`.trim();
   const excerpt = combined.split(/\r?\n/).slice(0, 30).join('\n');
   const reason = excerpt
-    ? `[SDD Forge] lint:boundaries 未通过（第 ${nextCount}/${MAX_CONTINUES} 次拦截，请修复后重跑；满 2 轮仍失败请停止盲修并建议 /rewind）：\n${excerpt}`
-    : `[SDD Forge] lint:boundaries 未通过（第 ${nextCount}/${MAX_CONTINUES} 次拦截，请修复后重跑）。`;
+    ? `[SDD Forge] ${bin} lint:boundaries 未通过（第 ${nextCount}/${MAX_CONTINUES} 次拦截，请修复后重跑；满 2 轮仍失败请停止盲修并建议 /rewind）：\n${excerpt}`
+    : `[SDD Forge] ${bin} lint:boundaries 未通过（第 ${nextCount}/${MAX_CONTINUES} 次拦截，请修复后重跑）。`;
   return { decision: 'continue', reason };
 }
 
-let result = ALLOW;
-try {
-  result = main();
-} catch {
-  result = ALLOW;
+// Run only when invoked directly as CLI (allows unit-testing exported helpers).
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
+if (isMain) {
+  let result = ALLOW;
+  try {
+    result = main();
+  } catch {
+    result = ALLOW;
+  }
+  process.stdout.write(`${JSON.stringify(result)}\n`);
 }
-process.stdout.write(`${JSON.stringify(result)}\n`);
